@@ -1,0 +1,7 @@
+interface:
+  display_name: "Axiom for herdr"
+  short_description: "Coordinate visible Codex workers in herdr panes"
+  default_prompt: "Use $axiom-for-herdr to develop this project with visible Codex workers and independent review."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,21 @@
+{
+  "name": "axiom-for-herdr",
+  "version": "0.1.0",
+  "description": "Axiom orchestration with visible Codex workers and reviewers in herdr panes.",
+  "author": {
+    "name": "phni3j9a",
+    "url": "https://github.com/phni3j9a"
+  },
+  "repository": "https://github.com/phni3j9a/axiom_for_herdr",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Axiom for herdr",
+    "shortDescription": "Codexの担当作業をherdrの分割ペインで見える化",
+    "longDescription": "MainがLuna・Astra・Solをherdrの別ペインで指揮し、結果回収後に担当ペインを閉じます。Axiomの役割分担とレビュー継続方針を引き継ぎます。",
+    "developerName": "phni3j9a",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": ["$axiom-for-herdr を使い、担当の作業をherdrの別ペインに表示しながら開発してください。"]
+  }
+}
