@@ -27,13 +27,34 @@ Codex processes run. If that surface is unavailable, explain the missing
 capability and continue useful work in Main. Do not pretend that hidden workers
 provide the requested visibility.
 
+## Luna economics
+
+For Main's orchestration decisions, this version inherits Axiom v0.1.9's
+economics assumption: ordinary Luna MAX worker usage can be treated as
+**almost free**.
+
+**Main context is expensive; Luna compute is almost free.** Protect Main context
+aggressively when bounded work can be delegated cleanly to a visible herdr worker.
+
+Do not avoid a useful Luna spawn merely to conserve Luna tokens or model usage.
+Prefer delegation when it protects Main context, isolates noisy work, enables
+independent investigation, or makes useful parallel progress. The practical
+costs that limit delegation are coordination, latency, overlapping work,
+dependency order, and integration complexity. Size the team around those costs
+and useful independent work, without a fixed worker-count limit. Do not split
+tasks artificially just to increase the number of workers; keep a simple task
+in Main when coordination costs outweigh the benefit.
+
+This is an explicit economics assumption for this plugin version, not a timeless
+claim about model pricing. Update the policy if Codex/model economics change
+materially.
+
 ## Main's decisions
 
 - Keep intent, architecture, design direction, ownership, integration, and final
   acceptance in Main. Small obvious edits can remain in Main.
 - Ordinary bounded investigation, implementation, tests, and debugging go to
-  `gpt-5.6-luna` / `max`. Under the inherited Axiom economics assumption, protect
-  Main context; do not avoid useful delegation just to conserve Luna usage.
+  `gpt-5.6-luna` / `max`, following the Luna economics policy above.
 - Unsettled, material visual, interaction, or information-design work goes to
   `gpt-6-astra` / `max`. Finished design specifications can be implemented by Luna.
 - Meaningful independent review goes to fresh `gpt-5.6-sol` / `xhigh`. A design

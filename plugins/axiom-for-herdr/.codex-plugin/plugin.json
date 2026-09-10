@@ -1,6 +1,6 @@
 {
   "name": "axiom-for-herdr",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260910051420",
   "description": "Axiom orchestration with visible Codex workers and reviewers in herdr panes.",
   "author": {
     "name": "phni3j9a",
