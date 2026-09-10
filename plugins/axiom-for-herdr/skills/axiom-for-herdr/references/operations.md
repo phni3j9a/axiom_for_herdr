@@ -64,28 +64,44 @@ this helper does not stop the workers.
 ### Waiting without repeatedly waking Main
 
 1. Start `wait --timeout 3600` once after launching independent work. If the exec
-   tool yields a running session ID, retain that ID through compaction.
-2. When Main has no useful independent work, wait on that same session with an
-   explicit long result-wait interval. With `write_stdin`, use empty `chars` and
-   the largest `yield_time_ms` allowed by the tool and current responsiveness
-   rules; for a one-minute limit, use `yield_time_ms=60000`. Use a longer interval
-   only where those rules permit it. If an outer execution wrapper also yields,
-   apply the same policy to its continuation handle; do not launch another helper.
+   tool yields a running session ID, retain that ID through compaction. Initial
+   process launch may yield sooner; use the fixed continuation wait below.
+2. When Main has no useful independent work, wait on that same session for
+   **300 seconds (five minutes)**. With `write_stdin`, use empty `chars` and
+   **`yield_time_ms=300000` on every result-wait call**. Do not omit the value,
+   shorten it to 60000, or choose an interval based on expected completion,
+   progress commentary, or the "longest allowed" wording. If an outer execution
+   wrapper also yields, use `yield_time_ms=300000` on its continuation handle as
+   well; do not launch another helper.
 3. If the tool returns with no new output and the session is still running,
-   continue the same long wait. Do not insert `status`, `read`, transcript scans,
+   continue the same session with `yield_time_ms=300000`. A host that rejects or
+   clamps this value needs the unsupported-host handling below. Do not insert
+   `status`, `read`, transcript scans,
    short sleeps, or another waiter. Progress commentary follows the session's
    communication rules and does not require extra state reads.
 4. On events, collect reports or investigate the specific affected task. Resolve
    what is actionable and retain any deferred blocker in Main's context before
    waiting for other work. On `pending: 0`, continue integration or finish; do not
-   restart the waiter. On helper timeout, reassess once and continue a long wait
-   if work is still expected. Diagnose helper errors before retrying them.
+   restart the waiter. On helper timeout, reassess once and start another helper
+   only if work is still expected; retain the five-minute result-wait value.
+   Diagnose helper errors before retrying them.
 
 The helper's `--timeout` is in seconds; the exec tool's result-wait interval is a
 separate setting, often in milliseconds. A one-hour helper does not force Codex
-to wait one hour in a single tool call. This policy reduces Main wakeups within
-the host's limits; it does not promise zero wakeups or install a push mechanism.
-User steering may interrupt waiting and should be handled promptly.
+to wait one hour in a single tool call. The five-minute value is the result-wait
+timeout, not a delay applied to completed work: reports, attention, process exit,
+and user steering can return earlier and must be handled promptly. Do not pad
+those returns with sleeps. The helper's internal polling remains two seconds.
+
+**Unsupported host:** if the tool cannot accept/honor 300000 ms, an outer wrapper
+forces shorter wakeups, or higher-priority rules require shorter waits, record
+and report that specific limitation once. Do not reinterpret this policy as
+one-minute polling, repeatedly try shorter waits, change host configuration, or
+claim that five-minute Main wakeups are enforced. Preserve the active helper and
+worker handles. Use an already available, permitted event-driven continuation
+if it can meet the policy; otherwise continue useful independent work or surface
+the waiting limitation when no such work remains. This skill cannot override
+host limits or higher-priority instructions and does not install a push mechanism.
 
 ### Repeated notifications
 

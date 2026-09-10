@@ -109,10 +109,16 @@ or asks about layout when necessary; do not bypass visibility with hidden agents
 
 Use one `wait --timeout 3600` process per run to watch all owned tasks. Its local
 two-second polling does not invoke Main's model. Retain its exec session handle
-and resume that handle with an explicitly long wait, using the largest interval
-allowed by the current tool and responsiveness rules (for example, 60000 ms when
-capped at one minute). The helper timeout and the tool's result-wait interval are
-separate; setting only the former does not prevent frequent Main wakeups.
+and resume that handle with a **fixed five-minute result wait: 300 seconds /
+`yield_time_ms=300000`**. This is a required value, not a default or an invitation
+to choose the "longest allowed" interval. Do not shorten it at Main's discretion
+or substitute a one-minute poll. Use the same value for a yielded outer wrapper.
+Reports, attention, process exit, and user steering may return control earlier;
+handle them immediately rather than delaying them until five minutes elapse.
+The helper timeout and the tool's result-wait interval are separate; setting only
+the former does not prevent frequent Main wakeups. If the host cannot honor this
+value or higher-priority rules prohibit it, follow the unsupported-host procedure
+in operations.md; do not silently fall back to shorter polling.
 Do not use short/default result polls, duplicate waiters, or periodic `status`,
 `read`, and transcript scans simply to check progress. Follow the concrete
 waiting procedure in operations.md and remain responsive to user steering.
@@ -122,7 +128,8 @@ agent state changes can notify again. A suppressed notification is still pending
 work, not acceptance or resolution. Handle each returned event before waiting
 again, or explicitly retain its blocker while other workers proceed. Do not
 restart waiting when no tasks are pending, or retry a helper error without
-diagnosing it. After timeout, reassess the work once before continuing a long wait.
+diagnosing it. After timeout, reassess the work once before continuing the fixed
+five-minute result wait.
 
 When a report is ready, `collect` it and inspect the relevant artifact or diff.
 For a completed Worker, call `close` promptly after gathering the evidence needed
