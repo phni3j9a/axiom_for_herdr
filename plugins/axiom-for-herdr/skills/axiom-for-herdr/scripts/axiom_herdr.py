@@ -184,6 +184,16 @@ Do not create subagents or manage herdr panes, including through another Axiom s
 
 {assignment}
 
+## Permissions
+
+Delegated sessions use workspace-write with approval_policy=never, independently
+of Main's mode. Work within the configured writable paths and network policy.
+Do not change permission settings, request escalation, or restart with broader
+access. If permissions block required work, publish --status blocked with the
+exact operation, target path or network destination, denial/error, why it is
+needed, and work already completed. Main will assess it under Main's own
+permissions and approval rules, then send a follow-up. Leave the pane open.
+
 ## Return contract
 
 Run this before starting work, and again before acting on any direct user follow-up:
@@ -285,6 +295,7 @@ def spawn(args):
     save_task(path, task)
     herdr.call("pane", "rename", pane["pane_id"], f"{args.role} · {args.label}")
     argv = ["-C", str(cwd), "-m", model, "-c", f'model_reasoning_effort="{effort}"',
+            "--sandbox", "workspace-write", "--ask-for-approval", "never",
             "--add-dir", str(run_dir), "--no-alt-screen"]
     task["requested_codex_args"] = argv
     save_task(path, task)

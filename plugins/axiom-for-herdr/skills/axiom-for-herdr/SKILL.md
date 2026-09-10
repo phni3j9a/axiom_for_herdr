@@ -69,6 +69,27 @@ materially.
   `launched_argv` establish what was requested, not a proof of actual model
   execution. Inspect the Codex session evidence if routing is in doubt.
 
+## Child permissions
+
+All delegated roles launch with `--sandbox workspace-write --ask-for-approval never`.
+This is a fixed child setting, independent of Main's mode; do not inherit Main's
+approval mode or switch children to Auto-review or full access. Main retains its
+own permissions and approval rules. Do not alter user/project Codex configuration.
+
+Use `--cwd` for the assigned project or prepared worktree. The helper adds the
+temporary run directory with `--add-dir` so children can publish reports outside
+Git metadata. It does not enable network access or remove other configured limits.
+Reviewer project read-only behavior remains a role instruction, not a separate
+read-only sandbox.
+
+When permissions block required work, the child publishes `blocked` with the
+operation, target, denial/error, reason, and completed work, then leaves its pane
+open. Main collects and assesses that report under its own authorization and
+approval rules, resolves what it can, and uses `send` to resume the same child.
+Do not automatically widen permissions, restart with broader access, or blindly
+execute a child's requested operation. Ask the user only when Main's rules or
+missing authorization require it.
+
 ## Operating the visible team
 
 Read [operations.md](references/operations.md) before first use. The bundled

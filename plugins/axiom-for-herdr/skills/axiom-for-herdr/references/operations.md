@@ -25,10 +25,18 @@ python3 "$helper" spawn --run "$run_dir" --role worker \
 
 Roles: `worker` (Luna MAX), `design` (Astra MAX), `reviewer` (Sol XHIGH).
 `--cwd /absolute/worktree` optionally starts the worker in a worktree Main has
-already prepared. Model/effort are selected by the role; approval and sandbox
-configuration remain the user's Codex defaults. No bypass flags are added.
+already prepared. Model/effort are selected by the role. Every role explicitly
+launches with `--sandbox workspace-write --ask-for-approval never`, independently
+of Main's current mode and the user's approval/sandbox defaults. The helper does
+not edit Codex configuration or add bypass flags. Network settings and other
+configured limits remain in effect; network access is not enabled by the helper.
+The assigned cwd and the temporary run directory added through `--add-dir` let
+the child edit its worktree and publish its report outside protected Git metadata.
 Review read-only behavior is an instruction contract, allowing only the assigned
 report directory to be written; it is not a separate sandbox enforcement layer.
+
+The fixed settings apply to newly spawned children. Updating the plugin or using
+`send` does not reconfigure an already-running Codex session.
 
 `spawn` prints JSON objects, one before startup and another after prompt submission.
 Capture the first object's `task` path even if startup later fails. It creates the
@@ -110,8 +118,17 @@ python3 "$helper" read --task "$task_dir" --lines 120
   first. If the work is already running, wait and collect. Send a fresh request
   only after determining what the agent received and whether more instructions
   are actually needed.
+- **Permission denied:** the child publishes `blocked` with the exact operation,
+  target path or network destination, denial/error, reason, and completed work.
+  `collect` the report and retain the pane. Main assesses the request under its
+  own permissions and approval rules, resolves it if authorized, and uses `send`
+  to continue the same session. Do not automatically expand the child's access,
+  restart with bypass flags, or blindly execute its request. If report publication
+  itself fails, inspect the pane to recover the blocker.
 - **Approval or question UI:** leave the pane visible and let the user or Main
-  respond within existing authorization. The helper does not approve dialogs.
+  respond within existing authorization. `never` disables runtime approval
+  requests; it does not guarantee that sign-in or every other UI is noninteractive.
+  The helper does not approve dialogs.
 - **Idle without report:** inspect the pane and ask the same agent to follow its
   return contract, using the appropriate current request or a deliberate follow-up.
 - **Pane moved:** the live agent name is resolved to its current pane and checked
