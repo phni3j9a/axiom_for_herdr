@@ -107,10 +107,22 @@ Respect manual resizing, pane movement, and the user's active input focus.
 If the terminal cannot accommodate another split, Main adapts the work schedule
 or asks about layout when necessary; do not bypass visibility with hidden agents.
 
-Use a long-running `wait` invocation to return on a report or attention from any
-owned task. It polls locally without repeatedly waking Main. In Codex, retain
-the exec session handle while it runs and continue through that handle rather
-than starting duplicate waiters. Remain responsive to user steering.
+Use one `wait --timeout 3600` process per run to watch all owned tasks. Its local
+two-second polling does not invoke Main's model. Retain its exec session handle
+and resume that handle with an explicitly long wait, using the largest interval
+allowed by the current tool and responsiveness rules (for example, 60000 ms when
+capped at one minute). The helper timeout and the tool's result-wait interval are
+separate; setting only the former does not prevent frequent Main wakeups.
+Do not use short/default result polls, duplicate waiters, or periodic `status`,
+`read`, and transcript scans simply to check progress. Follow the concrete
+waiting procedure in operations.md and remain responsive to user steering.
+
+Unchanged notifications are suppressed across waits; new requests, reports, or
+agent state changes can notify again. A suppressed notification is still pending
+work, not acceptance or resolution. Handle each returned event before waiting
+again, or explicitly retain its blocker while other workers proceed. Do not
+restart waiting when no tasks are pending, or retry a helper error without
+diagnosing it. After timeout, reassess the work once before continuing a long wait.
 
 When a report is ready, `collect` it and inspect the relevant artifact or diff.
 For a completed Worker, call `close` promptly after gathering the evidence needed

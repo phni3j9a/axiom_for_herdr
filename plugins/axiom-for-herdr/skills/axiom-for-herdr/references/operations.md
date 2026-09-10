@@ -44,9 +44,10 @@ pane, names it, starts interactive Codex, and sends a short prompt pointing to t
 self-contained task file. It returns after submission, without waiting for the
 work to finish. Create several independent workers before invoking `wait`.
 
-Serialize `init`, `spawn`, `send`, `collect`, and `close` for each run. Their Codex
-workers execute concurrently. Mutations are Main-owned; there is no scheduler
-daemon or shared database.
+Serialize `init`, `spawn`, `send`, `collect`, and `close` for each run, and keep at
+most one active `wait` process for that run. Their Codex workers execute
+concurrently. Mutations are Main-owned; there is no scheduler daemon or shared
+database.
 
 ```sh
 python3 "$helper" status --run "$run_dir"
@@ -56,9 +57,51 @@ python3 "$helper" close --task "$task_dir"
 ```
 
 `wait` samples the task reports and herdr's agent list every two seconds inside
-one local process. It returns when any task has a settled report or requires
-attention, when no tasks are pending, or when its timeout elapses. It does not
-send prompts or close panes. Interrupting this helper does not stop the workers.
+one local process, without calling Main's model. It prints only when returning:
+a new report/attention notification, no pending tasks, or timeout. Interrupting
+this helper does not stop the workers.
+
+### Waiting without repeatedly waking Main
+
+1. Start `wait --timeout 3600` once after launching independent work. If the exec
+   tool yields a running session ID, retain that ID through compaction.
+2. When Main has no useful independent work, wait on that same session with an
+   explicit long result-wait interval. With `write_stdin`, use empty `chars` and
+   the largest `yield_time_ms` allowed by the tool and current responsiveness
+   rules; for a one-minute limit, use `yield_time_ms=60000`. Use a longer interval
+   only where those rules permit it. If an outer execution wrapper also yields,
+   apply the same policy to its continuation handle; do not launch another helper.
+3. If the tool returns with no new output and the session is still running,
+   continue the same long wait. Do not insert `status`, `read`, transcript scans,
+   short sleeps, or another waiter. Progress commentary follows the session's
+   communication rules and does not require extra state reads.
+4. On events, collect reports or investigate the specific affected task. Resolve
+   what is actionable and retain any deferred blocker in Main's context before
+   waiting for other work. On `pending: 0`, continue integration or finish; do not
+   restart the waiter. On helper timeout, reassess once and continue a long wait
+   if work is still expected. Diagnose helper errors before retrying them.
+
+The helper's `--timeout` is in seconds; the exec tool's result-wait interval is a
+separate setting, often in milliseconds. A one-hour helper does not force Codex
+to wait one hour in a single tool call. This policy reduces Main wakeups within
+the host's limits; it does not promise zero wakeups or install a push mechanism.
+User steering may interrupt waiting and should be handled promptly.
+
+### Repeated notifications
+
+`wait-notices.json` in the run directory remembers the last notified request,
+report, and relevant agent state for each task. Identical notifications are
+suppressed across `wait` invocations, including unchanged `blocked`, `unknown`,
+unavailable agents, and idle agents without reports. New request IDs, published
+reports, or agent state changes notify again. Collection alone does not create
+a new notification. A cleared condition removes its remembered notification.
+
+Suppressed tasks still count as pending. Their reports and panes remain available
+through `status`, `collect`, and `read`; notification is not collection, acceptance,
+or permission to close. After context loss or an interrupted/lost tool response,
+inspect `status` once and recover outstanding reports before resuming the waiter.
+Do not delete the notification record or keep restarting the helper to force
+repeated alerts. No prompts, approvals, or pane closures happen in `wait`.
 
 `collect` prints the current request's report and records a receipt. `close`
 requires a complete collected report, the original Codex terminal, a settled

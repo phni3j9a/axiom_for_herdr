@@ -360,10 +360,13 @@ def wait(args):
     run_dir, run = load_run(args.run)
     herdr = Herdr(run)
     main_only(run, herdr)
+    notice_path = run_dir / "wait-notices.json"
+    previous = read_json(notice_path) if notice_path.exists() else {}
     deadline = time.monotonic() + args.timeout
     while True:
         agents = herdr.agents()
         events, pending = [], 0
+        current = {}
         for path, task in tasks_in(run_dir):
             if task.get("closed"):
                 continue
@@ -387,8 +390,24 @@ def wait(args):
             elif ready(agent) and time.time() - task.get("submitted_at", 0) > 8:
                 event = "idle_without_report"
             if event:
-                events.append({"task": str(path), "event": event,
-                               "pane_id": (agent or {}).get("pane_id", task.get("pane_id"))})
+                # Collection alone is not new activity. Ignore the display event's
+                # report_ready -> activity_since_collection rename in that case.
+                kind = "report" if event in ("report_ready", "activity_since_collection") else event
+                fingerprint = digest(dict(
+                    request_id=task["request_id"], event=kind, result=result,
+                    agent={key: (agent or {}).get(key) for key in
+                           ("terminal_id", "agent_status", "state_change_seq", "launch_pending")},
+                ))
+                current[str(path)] = fingerprint
+                if previous.get(str(path)) != fingerprint:
+                    events.append({"task": str(path), "event": event,
+                                   "pane_id": (agent or {}).get("pane_id", task.get("pane_id"))})
+        # Persist across wait invocations. Resolved/closed tasks disappear from the
+        # snapshot, so a later recurrence can notify again. This is not a receipt:
+        # status/collect still expose outstanding work, and close keeps its checks.
+        if current != previous:
+            atomic_json(notice_path, current)
+            previous = current
         if events or not pending:
             emit({"events": events, "pending": pending})
             return
