@@ -1,6 +1,6 @@
 # Axiom for herdr
 
-**Main thinks. Astra designs. Luna executes. Sol reviews.**
+**Main thinks. Sol designs. Luna executes. Sol reviews.**
 
 Codexの担当作業を、herdrの分割ペインで同時に見られるプラグインです。
 Mainが必要な担当を起動し、結果を回収したら担当ペインを閉じます。
@@ -14,9 +14,9 @@ Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法
 
 | 項目 | 動作 |
 |---|---|
-| Main | 左側で判断・分割・統合・最終受理を担当 |
-| 通常の調査・実装 | Luna MAXを右側の別ペインで起動 |
-| 重要なUIデザイン | Astra MAXを別ペインで起動 |
+| Main | Sol XHIGH。左側で判断・分割・統合・最終受理を担当 |
+| 通常の調査・実装 | Luna MAX Fastを右側の別ペインで起動 |
+| 重要なUIデザイン | Sol MAXを別ペインで起動 |
 | 独立レビュー | Sol XHIGH。再レビューは同じセッションを継続 |
 | 子の権限・承認 | 全役割を`workspace-write + never`で起動。権限不足はMainへ報告 |
 | 並列数 | 固定上限なし。Mainが作業の独立性と調整コストから判断 |
@@ -28,6 +28,24 @@ Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法
 全員が独立した対話型Codexとして動きます。Mainのサブエージェント機能で
 隠れて実行する構成にはしていません。Mainが補助スクリプトを呼んで管理し、
 常駐のオーケストレーターやダッシュボードは同梱しません。
+
+## モデルと速度の設定
+
+- Main: `gpt-5.6-sol` / `xhigh`
+- Worker: `gpt-5.6-luna` / `max` / Fast
+- Design: `gpt-5.6-sol` / `max`
+- Reviewer: `gpt-5.6-sol` / `xhigh`
+
+Mainはherdr内で`codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'`として
+起動します。プラグインは実行中のMainモデルやグローバル既定値を変更しません。
+補助スクリプトはworkerだけに`-c 'service_tier="fast"' -c features.fast_mode=true`を
+追加します。design・reviewerには速度の上書きを追加せず、既存のCodex設定に従います。
+Fastと推論強度の`max`は別設定です。Codexの`fast`はリクエストの`priority`に対応します
+（[公式設定リファレンス](https://learn.chatgpt.com/docs/config-file/config-reference)、
+[Fast mode](https://learn.chatgpt.com/docs/agent-configuration/speed)）。
+
+この割当は更新後に新しく起動する担当に適用します。起動引数は要求の記録であり、
+実際のモデル・推論強度・速度はCodexセッションの証拠で確認します。
 
 ## Luna MAXの経済性
 

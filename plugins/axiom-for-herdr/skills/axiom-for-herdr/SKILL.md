@@ -1,6 +1,6 @@
 ---
 name: axiom-for-herdr
-description: Software engineering coordination through visible herdr panes, combining Main-owned integration, Luna MAX implementation, Astra MAX design, Sol XHIGH independent review, report collection, and pane cleanup.
+description: Software engineering coordination through visible herdr panes, combining Sol XHIGH integration, Luna MAX Fast implementation, Sol MAX design, Sol XHIGH independent review, report collection, and pane cleanup.
 ---
 
 # Axiom for herdr
@@ -8,7 +8,7 @@ description: Software engineering coordination through visible herdr panes, comb
 Apply this workflow to the task for which the user explicitly invoked Axiom for
 herdr, including follow-up work on that task.
 
-Main thinks. Astra designs. Luna executes. Sol reviews. The user can watch and
+Main thinks. Sol designs. Luna executes. Sol reviews. The user can watch and
 intervene in each Codex terminal. Preserve Main context by returning compact
 evidence, rather than reading every worker transcript.
 
@@ -52,14 +52,29 @@ This is an explicit economics assumption for this plugin version, not a timeless
 claim about model pricing. Update the policy if Codex/model economics change
 materially.
 
+## Model policy
+
+- Main: `gpt-5.6-sol` / `xhigh`
+- Worker: `gpt-5.6-luna` / `max` / Fast
+- Design: `gpt-5.6-sol` / `max`
+- Reviewer: `gpt-5.6-sol` / `xhigh`
+
+Main is selected at session startup, for example with
+`codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'` inside herdr.
+The plugin cannot switch the active Main model and does not rewrite global defaults.
+The helper adds `-c 'service_tier="fast"' -c features.fast_mode=true` only for workers.
+Design and reviewer receive no tier override and retain the existing Codex tier settings.
+Fast is distinct from reasoning effort; verify actual routing from session evidence,
+not just the requested launch arguments.
+
 ## Main's decisions
 
 - Keep intent, architecture, design direction, ownership, integration, and final
   acceptance in Main. Small obvious edits can remain in Main.
 - Ordinary bounded investigation, implementation, tests, and debugging go to
-  `gpt-5.6-luna` / `max`, following the Luna economics policy above.
+  `gpt-5.6-luna` / `max` / Fast, following the Luna economics policy above.
 - Unsettled, material visual, interaction, or information-design work goes to
-  `gpt-6-astra` / `max`. Finished design specifications can be implemented by Luna.
+  `gpt-5.6-sol` / `max`. Finished design specifications can be implemented by Luna.
 - Meaningful independent review goes to fresh `gpt-5.6-sol` / `xhigh`. A design
   participant cannot independently review its own implementation.
 - Main chooses useful parallelism. There is no fixed worker count. Independent
