@@ -113,7 +113,16 @@ codex --enable plugins plugin add axiom-for-herdr@personal --json
 ```
 
 同梱のリポジトリ用カタログ名は`personal`です。
-インストール後、新しいCodexセッションをherdr内で開始してください。
+インストール後、herdr内で次のコマンドを実行し、新しいMainのCodexセッションを開始してください。
+
+```bash
+codex -c background_terminal_max_timeout=3600000
+```
+
+この起動時設定で、結果待ちの上限を1時間にします。指定しない場合の既定値は5分のため、
+Mainの起動前に必要です。実際の結果待ちには別途`yield_time_ms=3600000`を渡す必要があり、
+その指定はこのプラグインのスキルがMainへ指示します。
+
 このプラグインを使う作業では、通常のAxiomとの二重委譲を避けるため、初回は明示指定を推奨します。
 
 ```text
