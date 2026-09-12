@@ -122,18 +122,27 @@ Respect manual resizing, pane movement, and the user's active input focus.
 If the terminal cannot accommodate another split, Main adapts the work schedule
 or asks about layout when necessary; do not bypass visibility with hidden agents.
 
+Before starting Main for this workflow, set Codex's
+`background_terminal_max_timeout=3600000`; the recommended invocation is
+`codex -c background_terminal_max_timeout=3600000`. This prerequisite sets a
+technical upper bound for the one-hour wait, but it does not change the actual
+`yield_time_ms`, so both settings are required. The plugin does not edit user
+settings and does not reconfigure a running Main after startup.
+
 Use one `wait --timeout 3600` process per run to watch all owned tasks. Its local
 two-second polling does not invoke Main's model. Retain its exec session handle
-and resume that handle with a **fixed five-minute result wait: 300 seconds /
-`yield_time_ms=300000`**. This is a required value, not a default or an invitation
+and resume that handle with a **fixed one-hour result wait: 3600 seconds /
+`yield_time_ms=3600000`**. This is a required value, not a default or an invitation
 to choose the "longest allowed" interval. Do not shorten it at Main's discretion
-or substitute a one-minute poll. Use the same value for a yielded outer wrapper.
+or substitute a short poll. Use the same value for a yielded outer wrapper.
 Reports, attention, process exit, and user steering may return control earlier;
-handle them immediately rather than delaying them until five minutes elapse.
+handle them immediately rather than delaying them until one hour elapses.
 The helper timeout and the tool's result-wait interval are separate; setting only
 the former does not prevent frequent Main wakeups. If the host cannot honor this
 value or higher-priority rules prohibit it, follow the unsupported-host procedure
-in operations.md; do not silently fall back to shorter polling.
+in operations.md; do not silently fall back to shorter polling. Do not confuse a
+higher-level operations decision to avoid a long wait with an observed technical
+clamp or upper limit.
 Do not use short/default result polls, duplicate waiters, or periodic `status`,
 `read`, and transcript scans simply to check progress. Follow the concrete
 waiting procedure in operations.md and remain responsive to user steering.
@@ -144,7 +153,7 @@ work, not acceptance or resolution. Handle each returned event before waiting
 again, or explicitly retain its blocker while other workers proceed. Do not
 restart waiting when no tasks are pending, or retry a helper error without
 diagnosing it. After timeout, reassess the work once before continuing the fixed
-five-minute result wait.
+one-hour result wait.
 
 When a report is ready, `collect` it and inspect the relevant artifact or diff.
 For a completed Worker, call `close` promptly after gathering the evidence needed
