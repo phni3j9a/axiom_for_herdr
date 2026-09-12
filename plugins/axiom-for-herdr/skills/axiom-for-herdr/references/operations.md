@@ -18,6 +18,38 @@ It can also handle a project without Git; Main still checks any repository
 instructions and existing Git changes when applicable. Reuse the same run
 through compaction instead of creating a second set of workers.
 
+### Main registration with a shared app-server
+
+If commands lack `HERDR_PANE_ID`, register the verified association explicitly:
+
+```sh
+python3 "$helper" init --cwd "$project_dir" \
+  --main-pane "$verified_pane_id" \
+  --main-terminal-id "$verified_terminal_id" \
+  --socket "$herdr_socket_path"
+python3 "$helper" doctor --run "$run_dir"
+```
+
+Use the calling conversation's `CODEX_THREAD_ID` (`CODEX_SESSION_ID` is a fallback),
+not a copied ID from another conversation. Both explicit pane and terminal IDs are
+required. The helper validates that the specified live pane is the expected Codex
+terminal and checks any advertised session identity. It records the caller's thread
+ID and selected socket in the private run directory. No global registry is needed.
+
+The initial pairing is an explicit association established by Main/user; the presence
+of two IDs alone does not prove that a pane displays this conversation. Get candidate
+IDs from `herdr pane list`. Prefer an exact advertised `agent_session` identity match.
+When absent, inspect the candidate terminal to establish that it contains this
+conversation, or use an explicit user-provided association. Do not infer the pairing
+from focus, cwd, or the number of agents. If uncertain, obtain the missing identity.
+`herdr status server` shows the socket; `--socket` affects only this command/run.
+
+Once bound, every Main operation checks the caller's conversation ID and finds the
+recorded terminal in the live pane list. A moved Main follows its original terminal;
+a missing/reused terminal or a different conversation is rejected. An unrelated
+focused pane or inherited `HERDR_PANE_ID` cannot retarget a registered run. Old runs
+without a thread binding keep their original current-pane ownership check.
+
 ```sh
 python3 "$helper" spawn --run "$run_dir" --role worker \
   --label 'SSH再接続の実装' --task-file "$assignment_file"
@@ -27,13 +59,24 @@ Roles: `worker` (Luna MAX), `design` (Astra MAX), `reviewer` (Sol XHIGH).
 `--cwd /absolute/worktree` optionally starts the worker in a worktree Main has
 already prepared. Model/effort are selected by the role. Every role explicitly
 launches with `--sandbox workspace-write --ask-for-approval never`, independently
-of Main's current mode and the user's approval/sandbox defaults. The helper does
+of Main's current mode and the user's approval/sandbox defaults. The launch also
+pins `-c default_permissions=":workspace"` so named-profile runtimes select the
+same workspace restriction rather than an inherited broad profile. The helper does
 not edit Codex configuration or add bypass flags. Network settings and other
 configured limits remain in effect; network access is not enabled by the helper.
 The assigned cwd and the temporary run directory added through `--add-dir` let
 the child edit its worktree and publish its report outside protected Git metadata.
 Review read-only behavior is an instruction contract, allowing only the assigned
 report directory to be written; it is not a separate sandbox enforcement layer.
+
+The child role (`AXIOM_HERDR_ROLE`), report directory (`AXIOM_HERDR_TASK`), and
+available herdr pane/socket/binary context are supplied both to the pane shell and
+through per-session `-c shell_environment_policy.set.KEY=...` overrides. The latter
+survive shared app-server command execution without modifying user/project config
+or replacing unrelated environment-policy keys. Never put one child's context into
+the shared daemon's global environment. Explicit environment values still respect
+configured include filters; if a custom allowlist excludes the context keys, report
+that conflict instead of broadening filters or claiming the context was delivered.
 
 The fixed settings apply to newly spawned children. Updating the plugin or using
 `send` does not reconfigure an already-running Codex session.

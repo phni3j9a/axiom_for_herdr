@@ -67,15 +67,17 @@ def command(argv, *, env=None, timeout=45):
 
 
 class Herdr:
-    def __init__(self, run=None):
+    def __init__(self, run=None, socket_path=None):
         self.binary = (run or {}).get("herdr") or os.environ.get("HERDR_BIN_PATH") or shutil.which("herdr")
         if not self.binary:
             raise Failure("herdr is not on PATH. Run on the machine hosting the herdr panes.")
         self.env = os.environ.copy()
         if run is not None:
+            socket_path = run.get("socket_path")
+        if run is not None or socket_path is not None:
             self.env.pop("HERDR_SOCKET_PATH", None)
-            if run.get("socket_path"):
-                self.env["HERDR_SOCKET_PATH"] = run["socket_path"]
+            if socket_path:
+                self.env["HERDR_SOCKET_PATH"] = socket_path
 
     def call(self, *args, raw=False):
         output = command([self.binary, *map(str, args)], env=self.env)
@@ -93,18 +95,103 @@ class Herdr:
 
     def current(self):
         if not os.environ.get("HERDR_PANE_ID"):
-            raise Failure("Run this command from the Main Codex pane inside herdr.")
+            raise Failure("HERDR_PANE_ID is unavailable to this command. Register the verified "
+                          "Main with init --main-pane and --main-terminal-id, then use its run.")
         return self.call("pane", "current", "--current")["pane"]
 
     def agents(self):
         return {a["name"]: a for a in self.call("agent", "list")["agents"] if a.get("name")}
 
 
+def caller_thread_id():
+    thread_id = os.environ.get("CODEX_THREAD_ID") or None
+    session_id = os.environ.get("CODEX_SESSION_ID") or None
+    if thread_id and session_id and thread_id != session_id:
+        raise Failure("CODEX_THREAD_ID and CODEX_SESSION_ID are contradictory and identify different conversations.")
+    return thread_id or session_id
+
+
+def pane_session_id(pane):
+    if not isinstance(pane, dict):
+        return None
+    identity = pane.get("agent_session")
+    if isinstance(identity, dict):
+        identity = identity.get("value") or identity.get("id")
+    if identity:
+        return str(identity)
+    for key in ("agent_session_id", "session_id", "thread_id"):
+        identity = pane.get(key)
+        if identity:
+            return str(identity)
+    return None
+
+
+def is_codex_pane(pane):
+    return str(pane.get("agent") or "").lower() == "codex"
+
+
+def check_pane_session(pane, expected_thread_id):
+    observed = pane_session_id(pane)
+    if observed and observed != expected_thread_id:
+        raise Failure("The Main pane reports a different Codex session/conversation than this run.")
+
+
+def get_pane(herdr, pane_id):
+    return herdr.call("pane", "get", str(pane_id))["pane"]
+
+
+def live_panes(herdr):
+    return herdr.call("pane", "list")["panes"]
+
+
+def resolve_bound_main(run, herdr, thread_id):
+    expected_terminal_id = run.get("main_terminal_id")
+    expected_pane_id = run.get("main_pane_id")
+    if not expected_terminal_id or not expected_pane_id:
+        raise Failure("The bound run is missing its Main pane or terminal identity.")
+
+    panes = live_panes(herdr)
+    if not isinstance(panes, list):
+        raise Failure("herdr returned no usable live pane list for the bound Main terminal.")
+    recorded = [pane for pane in panes
+                if isinstance(pane, dict) and pane.get("pane_id") == expected_pane_id]
+    if len(recorded) > 1:
+        raise Failure("The recorded Main pane identity is ambiguous or has been reused.")
+    matches = [pane for pane in panes
+               if isinstance(pane, dict) and pane.get("terminal_id") == expected_terminal_id]
+    if len(matches) > 1:
+        raise Failure("The bound Main terminal identity is ambiguous; no pane was changed.")
+    if not matches:
+        if recorded and recorded[0].get("terminal_id") != expected_terminal_id:
+            raise Failure("The recorded Main pane was reused by another terminal; no pane was changed.")
+        raise Failure("The bound Main terminal is missing from the live pane list; no pane was changed.")
+    pane = matches[0]
+    # Moving/swapping a terminal can leave another terminal at the old pane ID.
+    # A unique surviving terminal identity is authoritative, not its old position.
+    if not pane.get("pane_id") or not is_codex_pane(pane):
+        raise Failure("The bound Main terminal is not a live Codex pane; no pane was changed.")
+    check_pane_session(pane, thread_id)
+    return pane
+
+
 def main_only(run, herdr):
     if os.environ.get("AXIOM_HERDR_ROLE") in MODELS:
         raise Failure("Delegated sessions may report results, but only Main manages panes.")
-    if herdr.current()["terminal_id"] != run["main_terminal_id"]:
+    if "main_thread_id" in run:
+        expected_thread_id = run.get("main_thread_id")
+        if not expected_thread_id:
+            raise Failure("The bound run has no Main conversation identity.")
+        thread_id = caller_thread_id()
+        if not thread_id:
+            raise Failure("This bound run requires CODEX_THREAD_ID or CODEX_SESSION_ID.")
+        if thread_id != expected_thread_id:
+            raise Failure("The caller thread does not match this run's Main thread. No pane was changed.")
+        return resolve_bound_main(run, herdr, thread_id)
+    pane = herdr.current()
+    if (not isinstance(pane, dict) or not run.get("main_terminal_id")
+            or pane.get("terminal_id") != run["main_terminal_id"]):
         raise Failure("This run belongs to another Main terminal. No pane was changed.")
+    return pane
 
 
 def load_run(path):
@@ -234,11 +321,31 @@ def submit(path, task, herdr):
 
 
 def init(args):
-    herdr = Herdr()
     if os.environ.get("AXIOM_HERDR_ROLE") in MODELS:
         raise Failure("A delegated session cannot initialize an orchestration run.")
-    pane = herdr.current()
-    cwd = Path(args.cwd or os.getcwd()).expanduser().resolve()
+    main_pane_id = getattr(args, "main_pane", None)
+    main_terminal_id = getattr(args, "main_terminal_id", None)
+    if bool(main_pane_id) != bool(main_terminal_id):
+        raise Failure("--main-pane and --main-terminal-id must be provided together.")
+    thread_id = caller_thread_id()
+    socket_path = getattr(args, "socket", None)
+    herdr = Herdr() if socket_path is None else Herdr(socket_path=socket_path)
+    if main_pane_id and main_terminal_id:
+        if not thread_id:
+            raise Failure("Explicit Main pairing requires CODEX_THREAD_ID or CODEX_SESSION_ID.")
+        pane = get_pane(herdr, main_pane_id)
+        if pane.get("pane_id") != main_pane_id:
+            raise Failure("herdr returned a different pane than --main-pane.")
+        if pane.get("terminal_id") != main_terminal_id:
+            raise Failure("--main-terminal-id does not match the specified live pane.")
+        if not is_codex_pane(pane):
+            raise Failure("The specified Main pane does not contain a Codex agent.")
+        check_pane_session(pane, thread_id)
+    else:
+        pane = herdr.current()
+        if thread_id:
+            check_pane_session(pane, thread_id)
+    cwd = Path(getattr(args, "cwd", None) or os.getcwd()).expanduser().resolve()
     if not cwd.is_dir():
         raise Failure("Main cwd must be an existing directory.")
     # Keep transport files outside Git metadata, which Codex can protect read-only.
@@ -246,7 +353,9 @@ def init(args):
     (run_dir / "tasks").mkdir()
     run = dict(id=uuid.uuid4().hex[:12], cwd=str(cwd), main_pane_id=pane["pane_id"],
                main_terminal_id=pane["terminal_id"], herdr=str(herdr.binary),
-               socket_path=os.environ.get("HERDR_SOCKET_PATH"))
+               socket_path=herdr.env.get("HERDR_SOCKET_PATH"))
+    if thread_id:
+        run["main_thread_id"] = thread_id
     atomic_json(run_dir / "run.json", run)
     emit({"run": str(run_dir), "main_pane": pane["pane_id"]})
 
@@ -254,14 +363,13 @@ def init(args):
 def spawn(args):
     run_dir, run = load_run(args.run)
     herdr = Herdr(run)
-    main_only(run, herdr)
-    cwd = Path(args.cwd or run["cwd"]).expanduser().resolve()
+    main_pane = main_only(run, herdr)
+    cwd = Path(getattr(args, "cwd", None) or run["cwd"]).expanduser().resolve()
     if not cwd.is_dir():
         raise Failure("Worker cwd must be an existing directory.")
     # Read before creating any terminal.
     Path(args.task_file).expanduser().resolve().read_text(encoding="utf-8")
     agents = herdr.agents()
-    main_pane = herdr.current()
     layout = herdr.call("pane", "layout", "--pane", main_pane["pane_id"])["layout"]
     owned = set()
     for _, previous in tasks_in(run_dir):
@@ -295,8 +403,20 @@ def spawn(args):
     save_task(path, task)
     herdr.call("pane", "rename", pane["pane_id"], f"{args.role} · {args.label}")
     argv = ["-C", str(cwd), "-m", model, "-c", f'model_reasoning_effort="{effort}"',
-            "--sandbox", "workspace-write", "--ask-for-approval", "never",
-            "--add-dir", str(run_dir), "--no-alt-screen"]
+            "-c", 'default_permissions=":workspace"']
+    context = [
+        ("AXIOM_HERDR_ROLE", args.role),
+        ("AXIOM_HERDR_TASK", path),
+        ("HERDR_PANE_ID", pane["pane_id"]),
+    ]
+    if herdr.env.get("HERDR_SOCKET_PATH"):
+        context.append(("HERDR_SOCKET_PATH", herdr.env["HERDR_SOCKET_PATH"]))
+    if herdr.binary:
+        context.append(("HERDR_BIN_PATH", herdr.binary))
+    for key, value in context:
+        argv.extend(["-c", f"shell_environment_policy.set.{key}={json.dumps(str(value), ensure_ascii=False)}"])
+    argv.extend(["--sandbox", "workspace-write", "--ask-for-approval", "never",
+                 "--add-dir", str(run_dir), "--no-alt-screen"])
     task["requested_codex_args"] = argv
     save_task(path, task)
     started = herdr.call("agent", "start", task["name"], "--kind", "codex",
@@ -339,6 +459,7 @@ def publish(args):
 def status(args):
     run_dir, run = load_run(args.run)
     herdr = Herdr(run)
+    main_only(run, herdr)
     agents = herdr.agents()
     rows = []
     for path, task in tasks_in(run_dir):
@@ -465,28 +586,44 @@ def close(args):
 def read(args):
     _, task, _, run = load_task(args.task)
     herdr = Herdr(run)
+    main_only(run, herdr)
     agent = live_agent(task, herdr.agents())
     print(herdr.call("agent", "read", agent["pane_id"], "--source", "recent-unwrapped",
                      "--lines", args.lines, raw=True), end="")
 
 
 def doctor(args):
-    herdr = Herdr()
+    run_path = getattr(args, "run", None)
+    if run_path:
+        _, run = load_run(run_path)
+        herdr = Herdr(run)
+        calling_pane = main_only(run, herdr)
+    else:
+        herdr = Herdr()
+        if not os.environ.get("HERDR_PANE_ID"):
+            raise Failure("No bound run was supplied and HERDR_PANE_ID is unavailable; "
+                          "use init --main-pane and --main-terminal-id from the Main UI.")
+        calling_pane = herdr.current()
     codex = shutil.which("codex")
     if not codex:
         raise Failure("codex is not on PATH on this machine.")
     emit({"herdr": command([herdr.binary, "--version"]).strip(),
           "codex": command([codex, "--version"]).strip(),
-          "calling_pane": herdr.current(),
+          "calling_pane": calling_pane,
           "note": "Read-only environment check; no agents were started."})
 
 
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="action", required=True)
-    sub.add_parser("doctor", help="Inspect versions and the current herdr pane").set_defaults(fn=doctor)
+    q = sub.add_parser("doctor", help="Inspect versions and the current herdr pane")
+    q.add_argument("--run", help="Use and validate an existing orchestration run")
+    q.set_defaults(fn=doctor)
     q = sub.add_parser("init", help="Create a run owned by the current Main pane")
     q.add_argument("--cwd")
+    q.add_argument("--main-pane", help="Explicitly pair Main with this live herdr pane")
+    q.add_argument("--main-terminal-id", help="Explicitly pair Main with this terminal identity")
+    q.add_argument("--socket", help="Use this herdr socket for this run")
     q.set_defaults(fn=init)
     q = sub.add_parser("spawn", help="Start a visible Codex and send one task")
     q.add_argument("--run", required=True)

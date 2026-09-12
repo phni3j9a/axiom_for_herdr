@@ -72,13 +72,17 @@ materially.
 ## Child permissions
 
 All delegated roles launch with `--sandbox workspace-write --ask-for-approval never`.
-This is a fixed child setting, independent of Main's mode; do not inherit Main's
+Also pin `-c default_permissions=":workspace"` for runtimes selecting named permission
+profiles. This is a fixed child setting, independent of Main's mode; do not inherit Main's
 approval mode or switch children to Auto-review or full access. Main retains its
 own permissions and approval rules. Do not alter user/project Codex configuration.
 
 Use `--cwd` for the assigned project or prepared worktree. The helper adds the
 temporary run directory with `--add-dir` so children can publish reports outside
-Git metadata. It does not enable network access or remove other configured limits.
+Git metadata. It does not enable network access or remove other configured limits. Child role,
+report path, and pane context are also passed as per-session shell environment
+config overrides so a shared app-server can supply them to tools. These invocation
+overrides do not edit user/project configuration.
 Reviewer project read-only behavior remains a role instruction, not a separate
 read-only sandbox.
 
@@ -97,6 +101,15 @@ Read [operations.md](references/operations.md) before first use. The bundled
 standard library. Resolve its absolute path from this skill's location.
 
 Initialize one run from the current Main pane and retain the returned run path.
+With a shared app-server, commands may have CODEX_THREAD_ID but no HERDR_* variables.
+Use the explicit Main registration in operations.md when this happens: verify the
+pane actually contains this conversation, then supply both its pane ID and terminal
+ID (and the server socket). Never select Main from focus, cwd, or a sole-agent guess.
+If herdr advertises this conversation's session identity, match it exactly; otherwise
+inspect the candidate terminal or use an explicit user-provided association. If the
+association cannot be established, obtain the missing identity before managing panes.
+After registration, use the recorded run. The helper checks the caller's conversation
+and resolves the original terminal even if it moves. Diagnose it with doctor --run.
 Write a self-contained assignment, then spawn a worker with the appropriate role.
 Task packets include only the objective, ownership, constraints, relevant
 acceptance conditions, and evidence needed for that job.

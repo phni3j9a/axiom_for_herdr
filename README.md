@@ -6,8 +6,9 @@ Codexの担当作業を、herdrの分割ペインで同時に見られるプラ�
 Mainが必要な担当を起動し、結果を回収したら担当ペインを閉じます。
 既存の[Axiom](https://github.com/phni3j9a/axiom)の役割分担とレビュー方針を引き継ぎます。
 
-初版 `v0.1.0`。herdr上の実動作・画面・モデル稼働の確認はユーザー環境で行う前提です。
-パッケージ構成、Python構文、CLIヘルプと、herdrを模擬した待機処理の回帰テストを確認しています。
+バージョン系列 `v0.1.0`。共有app-serverで実行するCodexに対応し、
+Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法と実機で確認した範囲は
+[実機確認手順](docs/MANUAL_VALIDATION.md)を参照してください。
 
 ## 動作方針
 
@@ -70,6 +71,9 @@ Worker・Design・Reviewerは、全員次の起動引数で固定します。
 --sandbox workspace-write --ask-for-approval never
 ```
 
+起動時には`-c default_permissions=":workspace"`も渡し、権限プロファイルを使うCodexでも
+子の権限を作業範囲内に固定します。
+
 MainのAuto・Auto-review・フルアクセスなどの選択には追従せず、Main自身の設定も
 変更しません。ユーザー・プロジェクトのCodex設定ファイルを書き換える処理はありません。
 
@@ -114,6 +118,37 @@ $axiom-for-herdr:axiom-for-herdr
 
 通常の自動選択も有効です。`AXIOM_HERDR_ROLE`または依頼内容で担当として識別された
 Codexは、さらに別の担当を起動せず、割り当てられた作業を実行します。
+
+## 共有app-serverでMainを登録する
+
+Codexの画面をherdrから起動しても、共有app-serverが実行するコマンドには
+`HERDR_PANE_ID`がない場合があります。この場合は、最初にMainの会話と画面を
+明示的に結び付けます。app-serverやCCpocketを停止する操作は不要です。
+
+Mainがこの会話を表示している端末を確認してから、次の形で登録します。
+
+```bash
+python3 "$helper" init --cwd "$project_dir" \
+  --main-pane "$verified_pane_id" \
+  --main-terminal-id "$verified_terminal_id" \
+  --socket "$herdr_socket_path"
+python3 "$helper" doctor --run "$run_dir"
+```
+
+`helper`はスキルに同梱する`axiom_herdr.py`の絶対パス、`run_dir`は`init`の出力です。
+画面IDと端末IDは`herdr pane list`等で取得しますが、フォーカスや作業ディレクトリの
+一致だけで自分の画面と判断しません。herdrに会話IDが記録されている場合は
+`CODEX_THREAD_ID`と照合し、ない場合は端末内容を確認するか、ユーザーが明示した
+対応を使います。初回の明示登録には、この確認が必要です。
+
+登録後の操作では、実行側の会話IDが登録したMainと一致すること、元の端末が
+今も存在することを確認します。画面を選び直しても対象は変わりません。
+端末が移動した場合はその端末を追い、端末が閉じられたりIDが再利用されたりした場合は停止します。
+登録内容がない古い実行記録には、従来のherdr環境変数による確認を適用します。
+
+子の役割・報告先・画面情報も、起動するCodexごとの`-c shell_environment_policy.set.…`で
+明示的に渡します。ユーザー設定ファイルや共有app-server全体の環境変数は書き換えません。
+子の`workspace-write + never`は維持します。
 
 ## 待機中のポーリング抑制
 
