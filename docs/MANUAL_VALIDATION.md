@@ -153,6 +153,9 @@ Mainの共有app-serverは0.153.4で、実行環境には会話IDがあるが`HE
 | 子のファイル権限 | 作業場所のmarker作成に成功。専用の範囲外fixtureへの書き込みはRead-only file systemで拒否 |
 | 実際のモデル・権限 | セッション記録でLuna MAX、Sol XHIGH、workspace-write / never、network_access=falseを確認 |
 | 同じ担当への追加指示 | 同一会話IDのままmarkerへの追記と報告回収に成功し、その担当ペインだけを終了 |
+| 起動直前の再照合を加えた最終版 | 実際のherdrで新規Luna担当を起動し、marker作成・報告回収・担当終了に成功 |
+| Reviewerの継続 | 同じSol会話で初回レビューと修正後の再確認を実施。今回の範囲で指摘を解決後、報告回収・担当終了 |
+| 更新版のインストール | personalの修正版を再インストール。キャッシュ内7ファイルがレビュー済みのソースと一致し、doctor --runも成功 |
 
 旧helperの起動引数はworkspace-write / neverだったが、この環境では子のセッション記録が
 フルアクセスだった。修正版は子ごとの`default_permissions=":workspace"`も指定し、
