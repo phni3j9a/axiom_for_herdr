@@ -123,7 +123,15 @@ codex -c background_terminal_max_timeout=3600000
 Mainの起動前に必要です。実際の結果待ちには別途`yield_time_ms=3600000`を渡す必要があり、
 その指定はこのプラグインのスキルがMainへ指示します。
 
-このプラグインを使う作業では、通常のAxiomとの二重委譲を避けるため、初回は明示指定を推奨します。
+このスキルは明示呼び出しで利用します。`skills/axiom-for-herdr/agents/openai.yaml`に次を設定しています。
+
+```yaml
+policy:
+  allow_implicit_invocation: false
+```
+
+スキルの`description`は機能を説明し、呼び出し方はこのpolicyで制御します。
+通常の開発依頼やherdr内での作業だけでは自動選択されません。利用する作業で次のように指定します。
 
 ```text
 $axiom-for-herdr:axiom-for-herdr
@@ -132,7 +140,9 @@ $axiom-for-herdr:axiom-for-herdr
 担当の作業はherdrの別ペインで見えるようにしてください。
 ```
 
-通常の自動選択も有効です。`AXIOM_HERDR_ROLE`または依頼内容で担当として識別された
+明示呼び出しした作業とその続きに適用します。同じ作業の追加指示では、毎回指定し直す必要はありません。
+呼び出された作業内では、必要な担当の起動・レビュー・結果回収・ペインの後片付けを行います。
+`AXIOM_HERDR_ROLE`または依頼内容で担当として識別された
 Codexは、さらに別の担当を起動せず、割り当てられた作業を実行します。
 
 ## 共有app-serverでMainを登録する

@@ -1,9 +1,12 @@
 ---
 name: axiom-for-herdr
-description: Coordinate non-trivial Codex engineering work through visible herdr panes. Main delegates bounded implementation to Luna MAX, material interface design to Astra MAX, and independent review to Sol XHIGH; collect reports and close completed panes. Use for engineering work inside herdr or explicit Axiom for herdr requests.
+description: Software engineering coordination through visible herdr panes, combining Main-owned integration, Luna MAX implementation, Astra MAX design, Sol XHIGH independent review, report collection, and pane cleanup.
 ---
 
 # Axiom for herdr
+
+Apply this workflow to the task for which the user explicitly invoked Axiom for
+herdr, including follow-up work on that task.
 
 Main thinks. Astra designs. Luna executes. Sol reviews. The user can watch and
 intervene in each Codex terminal. Preserve Main context by returning compact
