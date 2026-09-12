@@ -58,7 +58,12 @@ python3 "$helper" spawn --run "$run_dir" --role worker \
   --label 'SSH再接続の実装' --task-file "$assignment_file"
 ```
 
-Roles: `worker` (Luna MAX), `design` (Astra MAX), `reviewer` (Sol XHIGH).
+Roles: `worker` (Luna MAX Fast), `design` (Sol MAX), `reviewer` (Sol XHIGH).
+Only `worker` adds `-c 'service_tier="fast"' -c features.fast_mode=true`.
+`design` and `reviewer` do not override the existing Codex service tier.
+Main must be started as Sol XHIGH; the helper does not switch Main's model.
+`requested_codex_args` records the requested tier, not proof of effective Fast processing.
+
 `--cwd /absolute/worktree` optionally starts the worker in a worktree Main has
 already prepared. Model/effort are selected by the role. Every role explicitly
 launches with `--sandbox workspace-write --ask-for-approval never`, independently

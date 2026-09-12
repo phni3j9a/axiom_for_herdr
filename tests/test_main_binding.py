@@ -252,7 +252,12 @@ class MainBindingTests(unittest.TestCase):
     def test_spawn_passes_scoped_metadata_and_fixed_permissions_for_every_role(self):
         task_file = self.root / "assignment.md"
         task_file.write_text("do the bounded work\n", encoding="utf-8")
-        for role in helper.MODELS:
+        expected_models = {
+            "worker": ("gpt-5.6-luna", "max"),
+            "design": ("gpt-5.6-sol", "max"),
+            "reviewer": ("gpt-5.6-sol", "xhigh"),
+        }
+        for role, (model, effort) in expected_models.items():
             with self.subTest(role=role):
                 run_dir = self.root / f"run-{role}"
                 (run_dir / "tasks").mkdir(parents=True)
@@ -267,6 +272,12 @@ class MainBindingTests(unittest.TestCase):
                             task_file=str(task_file), cwd=str(self.root)))
                 start = next(call for call in fake.calls if call[:2] == ("agent", "start"))
                 argv = list(start[start.index("--") + 1:])
+                self.assertEqual(argv[argv.index("-m") + 1], model)
+                self.assertIn(f'model_reasoning_effort="{effort}"', argv)
+                tier_args = [value for value in argv if value.startswith("service_tier=")]
+                fast_args = [value for value in argv if value.startswith("features.fast_mode=")]
+                self.assertEqual(tier_args, ['service_tier="fast"'] if role == "worker" else [])
+                self.assertEqual(fast_args, ["features.fast_mode=true"] if role == "worker" else [])
                 config = {}
                 for index, value in enumerate(argv[:-1]):
                     if value == "-c" and argv[index + 1].startswith("shell_environment_policy.set."):

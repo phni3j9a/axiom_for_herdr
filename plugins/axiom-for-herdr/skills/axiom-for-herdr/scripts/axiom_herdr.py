@@ -19,7 +19,7 @@ import uuid
 
 MODELS = {
     "worker": ("gpt-5.6-luna", "max"),
-    "design": ("gpt-6-astra", "max"),
+    "design": ("gpt-5.6-sol", "max"),
     "reviewer": ("gpt-5.6-sol", "xhigh"),
 }
 HERE = Path(__file__).resolve()
@@ -408,6 +408,8 @@ def spawn(args):
     herdr.call("pane", "rename", pane["pane_id"], f"{args.role} · {args.label}")
     argv = ["-C", str(cwd), "-m", model, "-c", f'model_reasoning_effort="{effort}"',
             "-c", 'default_permissions=":workspace"']
+    if args.role == "worker":
+        argv.extend(["-c", 'service_tier="fast"', "-c", "features.fast_mode=true"])
     context = [
         ("AXIOM_HERDR_ROLE", args.role),
         ("AXIOM_HERDR_TASK", path),
