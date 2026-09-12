@@ -58,9 +58,10 @@ python3 "$helper" spawn --run "$run_dir" --role worker \
   --label 'SSH再接続の実装' --task-file "$assignment_file"
 ```
 
-Roles: `worker` (Luna MAX Fast), `design` (Sol MAX), `reviewer` (Sol XHIGH).
+Roles: `worker` (Luna MAX Fast), `design` (Sol MAX), `reviewer` (Sol XHIGH),
+`advisor` (Astra XHIGH for both plan drafting and consultation).
 Only `worker` adds `-c 'service_tier="fast"' -c features.fast_mode=true`.
-`design` and `reviewer` do not override the existing Codex service tier.
+`design`, `reviewer`, and `advisor` do not override the existing Codex service tier.
 Main must be started as Sol XHIGH; the helper does not switch Main's model.
 `requested_codex_args` records the requested tier, not proof of effective Fast processing.
 
@@ -80,7 +81,7 @@ not edit Codex configuration or add bypass flags. Network settings and other
 configured limits remain in effect; network access is not enabled by the helper.
 The assigned cwd and the temporary run directory added through `--add-dir` let
 the child edit its worktree and publish its report outside protected Git metadata.
-Review read-only behavior is an instruction contract, allowing only the assigned
+Review and advisor read-only behavior is an instruction contract, allowing only the assigned
 report directory to be written; it is not a separate sandbox enforcement layer.
 
 The child role (`AXIOM_HERDR_ROLE`), report directory (`AXIOM_HERDR_TASK`), and
@@ -205,6 +206,38 @@ Reports remain in the run directory after panes close. `status --all` includes
 closed tasks. Important conclusions belong in Main's summary or the project's
 normal documentation. The temporary directory is not a durable archive and may
 be removed by OS cleanup. This plugin does not delete the reports automatically.
+
+## Astra consultations
+
+Read [advisor.md](advisor.md). Main explicitly writes selected user/Main dialogue,
+current agreements, the question, and primary evidence into a consultation file;
+the helper does not extract or filter Main's history. Supply the relevant cwd and
+source references. It wraps that file in the advisory/no-project-edit instructions
+and the normal report protocol:
+
+```sh
+python3 "$helper" spawn --run "$run_dir" --role advisor \
+  --label '移行計画の相談' --task-file "$consultation_file" --cwd "$project_dir"
+```
+
+Retain the printed task path. Use the same run waiter and `collect` as for other
+roles. A missing fact that prevents sound advice is a `blocked` report: collect it,
+get the specific evidence, and send it to the same Advisor. Never close that pane
+as if the consultation had completed. Do useful independent work while collecting
+the missing facts instead of repeating the same request.
+
+```sh
+python3 "$helper" send --task "$advisor_task_dir" --task-file "$followup_file"
+```
+
+For the same question, keep the same pane while Main weighs the recommendation or
+needs follow-up. Send new evidence, changed requirements, and Main's decision rather
+than repeating the entire packet. Main adopts/rejects the advice and closes the pane
+after the consultation is resolved and the current complete report is collected.
+Changing roles through `send` is not supported; never reuse this Advisor as the
+independent Reviewer. A substantially different question starts a new Advisor with
+a current packet. If startup fails, use the recovery procedure below rather than
+duplicating the pane or silently switching model/effort.
 
 ## Follow-up and review
 

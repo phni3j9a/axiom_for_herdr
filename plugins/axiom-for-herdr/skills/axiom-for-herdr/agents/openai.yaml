@@ -1,6 +1,6 @@
 interface:
   display_name: "Axiom for herdr"
-  short_description: "Coordinate visible Codex workers in herdr panes"
+  short_description: "Visible Codex workers and Astra XHIGH advice in herdr"
   default_prompt: "Use $axiom-for-herdr:axiom-for-herdr to develop this project with visible Codex workers and independent review."
 
 policy:

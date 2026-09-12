@@ -1,5 +1,9 @@
 # Independent Sol review
 
+An Astra planning/advisory participant cannot be the independent Reviewer. Astra
+may advise Main on a technical dispute, but Main still adjudicates findings and
+decides whether the same Sol Reviewer needs another pass.
+
 Adapted from phni3j9a/axiom's MIT-licensed review guidance.
 
 Start the review cycle in a fresh `reviewer` pane (Sol XHIGH), independent of
