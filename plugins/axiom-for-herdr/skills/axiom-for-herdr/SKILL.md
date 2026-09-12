@@ -72,8 +72,10 @@ materially.
 ## Child permissions
 
 All delegated roles launch with `--sandbox workspace-write --ask-for-approval never`.
-Also pin `-c default_permissions=":workspace"` for runtimes selecting named permission
-profiles. This is a fixed child setting, independent of Main's mode; do not inherit Main's
+Also pin `-c default_permissions=":workspace"`, as validated with CLI 0.154.0 / shared
+app-server 0.153.4. See operations.md for this compatibility choice and verify effective
+child permissions on other versions; the two policy systems are not composed.
+This is a fixed child setting, independent of Main's mode; do not inherit Main's
 approval mode or switch children to Auto-review or full access. Main retains its
 own permissions and approval rules. Do not alter user/project Codex configuration.
 

@@ -49,6 +49,9 @@ recorded terminal in the live pane list. A moved Main follows its original termi
 a missing/reused terminal or a different conversation is rejected. An unrelated
 focused pane or inherited `HERDR_PANE_ID` cannot retarget a registered run. Old runs
 without a thread binding keep their original current-pane ownership check.
+Spawn refreshes Main after task preparation and agent listing, just before deriving
+the layout/split target. The separate lookup and split calls are not atomic against
+a simultaneous move; herdr has no terminal-ID/CAS precondition for this split.
 
 ```sh
 python3 "$helper" spawn --run "$run_dir" --role worker \
@@ -60,8 +63,14 @@ Roles: `worker` (Luna MAX), `design` (Astra MAX), `reviewer` (Sol XHIGH).
 already prepared. Model/effort are selected by the role. Every role explicitly
 launches with `--sandbox workspace-write --ask-for-approval never`, independently
 of Main's current mode and the user's approval/sandbox defaults. The launch also
-pins `-c default_permissions=":workspace"` so named-profile runtimes select the
-same workspace restriction rather than an inherited broad profile. The helper does
+pins `-c default_permissions=":workspace"` because the tested CLI 0.154.0 / shared
+app-server 0.153.4 pair used broad permissions with the legacy flags alone. In that
+pair, both selectors together produced workspace-write / never and an outside-write
+denial. This is measured compatibility for that pair, not a cross-version guarantee.
+[Codex's permission docs](https://learn.chatgpt.com/docs/permissions) say profiles and
+legacy sandbox settings do not compose; ordinarily the legacy selector wins. Do not
+copy the dual selectors into user config or infer that both policies are merged.
+Verify effective child permissions when upgrading Codex. The helper does
 not edit Codex configuration or add bypass flags. Network settings and other
 configured limits remain in effect; network access is not enabled by the helper.
 The assigned cwd and the temporary run directory added through `--add-dir` let
@@ -244,7 +253,7 @@ python3 "$helper" read --task "$task_dir" --lines 120
   contract and close checks reduce that window but do not eliminate it.
 
 The first release targets the CLI surface documented by herdr in September 2026:
-`pane current/layout/split/rename/close`, `agent list/start/prompt/read`, JSON
-`result.pane` / `result.agent`, and agent terminal IDs / state-change sequences.
+`pane current/get/list/layout/split/rename/close`, `agent list/start/prompt/read`, JSON
+`result.pane` / `result.panes` / `result.agent`, and agent terminal IDs / state-change sequences.
 Use the installed herdr's `--help` and `api schema --json` when diagnosing version
 differences. Do not silently replace unsupported commands with guessed keystrokes.

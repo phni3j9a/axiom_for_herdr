@@ -363,13 +363,25 @@ def init(args):
 def spawn(args):
     run_dir, run = load_run(args.run)
     herdr = Herdr(run)
-    main_pane = main_only(run, herdr)
+    # Authorize the caller before doing any local task preparation. The bound
+    # Main is resolved again after the agent listing, because that work can
+    # observe a terminal move or swap.
+    main_only(run, herdr)
     cwd = Path(getattr(args, "cwd", None) or run["cwd"]).expanduser().resolve()
     if not cwd.is_dir():
         raise Failure("Worker cwd must be an existing directory.")
     # Read before creating any terminal.
     Path(args.task_file).expanduser().resolve().read_text(encoding="utf-8")
+    path = run_dir / "tasks" / uuid.uuid4().hex[:10]
+    path.mkdir(mode=0o700)
+    model, effort = MODELS[args.role]
+    task = dict(id=path.name, run_dir=str(run_dir), name=f"ah-{run['id']}-{path.name}",
+                role=args.role, label=args.label, cwd=str(cwd), model=model, effort=effort)
+    prepare_request(path, task, args.task_file)
+    # Output the handle before any pane mutation so partial failures remain inspectable.
+    emit({"task": str(path), "name": task["name"], "request_id": task["request_id"]})
     agents = herdr.agents()
+    main_pane = main_only(run, herdr)
     layout = herdr.call("pane", "layout", "--pane", main_pane["pane_id"])["layout"]
     owned = set()
     for _, previous in tasks_in(run_dir):
@@ -387,14 +399,6 @@ def spawn(args):
         target_id, ratio = target["pane_id"], "0.5"
     else:
         target_id, direction, ratio = main_pane["pane_id"], "right", "0.42"
-    path = run_dir / "tasks" / uuid.uuid4().hex[:10]
-    path.mkdir(mode=0o700)
-    model, effort = MODELS[args.role]
-    task = dict(id=path.name, run_dir=str(run_dir), name=f"ah-{run['id']}-{path.name}",
-                role=args.role, label=args.label, cwd=str(cwd), model=model, effort=effort)
-    prepare_request(path, task, args.task_file)
-    # Output the handle before startup so partial failures remain inspectable.
-    emit({"task": str(path), "name": task["name"], "request_id": task["request_id"]})
     pane = herdr.call("pane", "split", target_id, "--direction", direction,
                       "--ratio", ratio, "--cwd", cwd, "--no-focus",
                       "--env", f"AXIOM_HERDR_ROLE={args.role}",

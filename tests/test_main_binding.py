@@ -84,6 +84,25 @@ class FakeHerdr:
         raise AssertionError(f"unexpected herdr call: {args}")
 
 
+class MovingMainFakeHerdr(FakeHerdr):
+    """Replace pane snapshots when agents() first observes a Main move."""
+
+    def __init__(self, initial_panes, moved_panes, agents=None):
+        super().__init__(initial_panes, agents)
+        self.moved_panes = [dict(value) for value in moved_panes]
+        self.has_moved = False
+
+    def agents(self):
+        self.calls.append(("agent", "list"))
+        if not self.has_moved:
+            # Replace the list and its pane dictionaries instead of mutating an
+            # object returned by the initial pane lookup.
+            self.panes = [dict(value) for value in self.moved_panes]
+            self.current_pane = self.panes[0] if self.panes else None
+            self.has_moved = True
+        return self.agent_rows
+
+
 def pane(pane_id="main-pane", terminal_id="main-terminal", session_id="main-thread",
          agent="codex"):
     value = {
@@ -270,6 +289,51 @@ class MainBindingTests(unittest.TestCase):
                 self.assertIn("--env", split)
                 self.assertIn(f"AXIOM_HERDR_ROLE={role}", split)
                 self.assertTrue(any(str(value).startswith("AXIOM_HERDR_TASK=") for value in split))
+
+    def test_spawn_rechecks_main_after_agent_listing_when_main_moves(self):
+        task_file = self.root / "assignment.md"
+        task_file.write_text("do the bounded work\n", encoding="utf-8")
+        run_dir = self.root / "spawn-run"
+        (run_dir / "tasks").mkdir(parents=True)
+        helper.atomic_json(run_dir / "run.json", self.bound_run(cwd=str(self.root)))
+        fake = MovingMainFakeHerdr(
+            initial_panes=[pane("old-main-pane")],
+            moved_panes=[
+                pane("old-main-pane", terminal_id="other-terminal", session_id="other-thread"),
+                pane("new-main-pane"),
+            ],
+        )
+        with patch.dict(helper.os.environ, {"CODEX_THREAD_ID": "main-thread"}, clear=True), \
+                patch.object(helper, "Herdr", return_value=fake):
+            with redirect_stdout(io.StringIO()):
+                helper.spawn(argparse.Namespace(
+                    run=str(run_dir), role="worker", label="label",
+                    task_file=str(task_file), cwd=str(self.root)))
+        split = next(call for call in fake.calls if call[:2] == ("pane", "split"))
+        self.assertEqual(split[2], "new-main-pane")
+        self.assertNotEqual(split[2], "old-main-pane")
+
+    def test_spawn_rejects_disappeared_main_after_agent_listing_without_split(self):
+        task_file = self.root / "assignment.md"
+        task_file.write_text("do the bounded work\n", encoding="utf-8")
+        run_dir = self.root / "spawn-run"
+        (run_dir / "tasks").mkdir(parents=True)
+        helper.atomic_json(run_dir / "run.json", self.bound_run(cwd=str(self.root)))
+        fake = MovingMainFakeHerdr(
+            initial_panes=[pane("old-main-pane")],
+            moved_panes=[pane("old-main-pane", terminal_id="other-terminal", session_id="other-thread")],
+        )
+        output = io.StringIO()
+        with patch.dict(helper.os.environ, {"CODEX_THREAD_ID": "main-thread"}, clear=True), \
+                patch.object(helper, "Herdr", return_value=fake):
+            with self.assertRaisesRegex(helper.Failure, "reused"):
+                with redirect_stdout(output):
+                    helper.spawn(argparse.Namespace(
+                        run=str(run_dir), role="worker", label="label",
+                        task_file=str(task_file), cwd=str(self.root)))
+        self.assertTrue(any(call[:2] == ("agent", "list") for call in fake.calls))
+        self.assertFalse(any(call[:2] == ("pane", "split") for call in fake.calls))
+        self.assertIn('"task":', output.getvalue())
 
     def test_status_and_read_require_bound_main_ownership(self):
         run_dir = self.root / "status-run"

@@ -57,9 +57,11 @@ Mainのコンテキストを守る、大量の調査ログを担当側に留め�
 - Codexのプラグイン機能と、上記モデルを利用できること。
 
 実装は2026年9月のherdr公式CLI/API定義を参照しています。対応する操作は
-`pane current/layout/split/rename/close`、`agent list/start/prompt/read`です。
+`pane current/get/list/layout/split/rename/close`、`agent list/start/prompt/read`です。
+JSONの`result.pane`、`result.panes`、`result.agent`等を使います。
 herdrの最低対応バージョンは実機確認後に確定します。
-Codexの起動・導入引数は手元のCLI `0.154.0-alpha.3` のヘルプと公開設定定義で確認しています。
+今回の共有app-server対応はherdr `0.9.0`、Codex CLI `0.154.0`と共有app-server
+`0.153.4`の組み合わせで実機確認しています。他バージョンの動作は未確認です。
 
 SSH先で使う場合は、そのSSH先でMain・herdr・各担当を動かしてください。
 
@@ -71,8 +73,13 @@ Worker・Design・Reviewerは、全員次の起動引数で固定します。
 --sandbox workspace-write --ask-for-approval never
 ```
 
-起動時には`-c default_permissions=":workspace"`も渡し、権限プロファイルを使うCodexでも
-子の権限を作業範囲内に固定します。
+起動時には`-c default_permissions=":workspace"`も渡します。これは上記の実機環境で
+従来の引数だけでは子がフルアクセスになったことへの対処であり、その組み合わせで
+実際に`workspace-write / never`と範囲外書き込みの拒否を確認しています。
+[Codexの公式説明](https://learn.chatgpt.com/docs/permissions)では旧sandbox指定と
+権限プロファイルは合成されず、通常は旧指定が選ばれます。この起動引数を一般的な
+設定ファイルの書き方として推奨するものではありません。Codexの更新時は起動引数だけでなく、
+実際の子の権限も再確認してください。
 
 MainのAuto・Auto-review・フルアクセスなどの選択には追従せず、Main自身の設定も
 変更しません。ユーザー・プロジェクトのCodex設定ファイルを書き換える処理はありません。
@@ -144,6 +151,8 @@ python3 "$helper" doctor --run "$run_dir"
 登録後の操作では、実行側の会話IDが登録したMainと一致すること、元の端末が
 今も存在することを確認します。画面を選び直しても対象は変わりません。
 端末が移動した場合はその端末を追い、端末が閉じられたりIDが再利用されたりした場合は停止します。
+担当の起動直前にもMainを確認し直しますが、herdrの照会と分割は別操作のため、
+その間の同時移動まで原子的に防ぐことはできません。
 登録内容がない古い実行記録には、従来のherdr環境変数による確認を適用します。
 
 子の役割・報告先・画面情報も、起動するCodexごとの`-c shell_environment_policy.set.…`で
