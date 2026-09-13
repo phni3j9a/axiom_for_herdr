@@ -110,10 +110,11 @@ automatically export conversation history. Astra can inspect relevant files read
 and request missing facts; broad investigation goes back to Main for delegation.
 
 Use `spawn --role advisor` through the visible herdr path in [operations.md](references/operations.md).
-Keep the same Advisor pane for follow-ups on the same question, send new evidence and
-Main's decisions through `send`, and close it after Main resolves the consultation.
-A blocked request for facts keeps the pane open. The helper does not enforce a special
-Advisor lifecycle; Main decides when the consultation is finished. If Astra XHIGH is
+Once needed, keep the same Advisor pane for Main's entire work session, including
+later consultations. Send new evidence, changed assumptions, and Main's decisions
+through `send`. Resolving one consultation does not end the Advisor's lifetime;
+follow the pane lifecycle below and advisor.md for justified session replacement.
+The helper does not enforce this lifecycle; Main owns it. If Astra XHIGH is
 unavailable, disclose the failure and continue useful work in Main without silently
 substituting a model or effort, duplicating the pane, or widening permissions.
 
@@ -207,24 +208,47 @@ restart waiting when no tasks are pending, or retry a helper error without
 diagnosing it. After timeout, reassess the work once before continuing the fixed
 one-hour result wait.
 
-When a report is ready, `collect` it and inspect the relevant artifact or diff.
-For a completed Worker, call `close` promptly after gathering the evidence needed
-for integration. Keep reports and Main's decisions available for the current
-task; keep the screen focused on current work. Do not wait for an additional
-user confirmation just to close an owned, completed worker.
+## Pane lifecycle
 
-`complete` describes a returned assignment, not product acceptance. Main decides
-whether fixes, further work, or independent review are needed. Use `send` for
-a follow-up when the original pane is still open; otherwise launch a new worker
-with the relevant previous report and current intent.
+When a report is ready, `collect` it and inspect the relevant artifact or diff.
+`complete` describes a returned assignment, not product acceptance or permission
+to end a role's lifetime. Main decides whether fixes, further work, or review are needed.
+
+- Keep Workers responsible for a candidate throughout its entire review cycle,
+  including idle periods between implementation, fixes, and re-review. Send
+  accepted fixes to the original responsible Worker with Main's adjudication,
+  current candidate, and verification requirements. If that session is lost,
+  recover with a new Worker carrying the relevant previous report and current intent.
+- Keep the same independent Reviewer through that review cycle. Once Main ends
+  it, close the Reviewer and participating Workers whose work is resolved.
+- For Worker or Design assignments without a pending review or follow-up, such as
+  an accepted standalone investigation, close the participant after Main accepts its result.
+- Once an Advisor is started, retain it throughout Main's work session and close
+  it when Main wraps up the overall work and performs pane cleanup. A work session
+  is the continuing work with the user, including follow-ups. An individual
+  consultation ending, an intermediate reply, waiting for user input, or context
+  compaction does not end it.
+
+Retain task handles, ownership, reports, and Main's decisions across turns and
+compaction so follow-ups use `send` on the intended sessions. An unchanged,
+collected `complete` report from a settled agent is excluded from `wait`'s pending
+count even while its pane stays open. `pending: 0` is not a signal to close retained
+participants or restart the waiter. Retention alone requires no new prompts or
+periodic progress checks.
+
+When a participant's lifetime ends, use `close` with its current collected complete
+report and the existing identity/activity checks. Keep unresolved or active work
+visible; do not bypass those checks to finish cleanup. No additional user confirmation
+is needed just to close an owned, completed participant at that point.
 
 ## Review continuity
 
-Read [review.md](references/review.md) before independent review. Keep the same
-Reviewer pane across accepted fixes and re-review. Collect its report after each
-round, send Main's adjudication with the updated candidate, and close it once
-Main considers the entire review cycle complete. Do not close it merely because
-one response ended. Main decides when review has diminishing value.
+Read [review.md](references/review.md) before independent review. Keep the responsible
+Workers and the same Reviewer across accepted fixes and re-review. Main adjudicates
+each review report, sends bounded fixes to the responsible Workers, then sends the
+updated candidate and verification evidence to the same Reviewer. Apply the pane
+lifecycle above when Main considers the entire review cycle complete. Main decides
+when review has diminishing value.
 
 ## Direct intervention and incomplete work
 

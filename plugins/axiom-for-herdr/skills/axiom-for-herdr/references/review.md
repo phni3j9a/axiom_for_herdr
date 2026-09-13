@@ -8,8 +8,9 @@ Adapted from phni3j9a/axiom's MIT-licensed review guidance.
 
 Start the review cycle in a fresh `reviewer` pane (Sol XHIGH), independent of
 implementation and design participants. Keep that same Codex session for useful
-re-review. Main owns acceptance, risk tolerance, scope, and the decision to end
-or reset a review cycle.
+re-review, and retain the Workers responsible for the candidate throughout the
+cycle so they can address accepted findings. Main owns acceptance, risk tolerance,
+scope, and the decision to end or reset a review cycle.
 
 ## Review boundary
 
@@ -65,6 +66,13 @@ translates accepted findings into bounded fixes, preserving design intent and
 the user's risk tolerance. Do not blindly forward every reviewer suggestion to
 a worker. Concrete evidence remains visible even when Main defers a mitigation.
 
+Send accepted fixes to the original responsible Worker through `send`, with the
+finding IDs, Main's decisions, current candidate, and required verification. Keep
+write ownership clear when several Workers contributed. A returned implementation
+or fix report is not a reason to close that Worker while its review cycle continues.
+If the original session is lost, provide its relevant report and current intent to
+a replacement; creating a fresh fix Worker is recovery, not the routine next step.
+
 ## Finding Freeze and continuity
 
 The initial review establishes finding IDs and a review boundary, without a fixed
@@ -90,4 +98,7 @@ the earlier findings, adjudication, fixes, current candidate, and evidence.
 Treat that as recovery, not routine re-review. Never substitute Luna as Reviewer.
 
 Main ends review when the candidate is sufficiently resolved and no accepted
-material finding remains unaddressed. Then it closes the Reviewer pane.
+material finding remains unaddressed. Then it closes the Reviewer and participating
+Workers whose work is resolved, using their current collected complete reports and
+the normal close checks. A participant with other pending work remains open. The
+Advisor, if present, follows Main's work-session lifetime rather than this cycle.

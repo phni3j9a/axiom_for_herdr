@@ -111,6 +111,12 @@ database.
 python3 "$helper" status --run "$run_dir"
 python3 "$helper" wait --run "$run_dir" --timeout 3600
 python3 "$helper" collect --task "$task_dir"
+```
+
+Use `close` only when the participant reaches the end of its
+[pane lifecycle](../SKILL.md#pane-lifecycle), after reviewing its current report:
+
+```sh
 python3 "$helper" close --task "$task_dir"
 ```
 
@@ -203,12 +209,19 @@ inspect `status` once and recover outstanding reports before resuming the waiter
 Do not delete the notification record or keep restarting the helper to force
 repeated alerts. No prompts, approvals, or pane closures happen in `wait`.
 
+Retained Workers, Reviewers, and Advisors with unchanged collected `complete`
+reports and settled, unchanged agent state are excluded from the pending count.
+Their panes and task handles remain available for `send`; new requests or later
+activity are evaluated again. `pending: 0` does not end their review cycle or Main's
+work session and must not trigger blanket cleanup or another waiter. A collected
+`blocked` report remains pending.
+
 `collect` prints the current request's report and records a receipt. `close`
 requires a complete collected report, the original Codex terminal, a settled
 agent, and unchanged report/activity since collection. Main must read the
-result before issuing `close`. The helper does not judge correctness or review
-findings. Each owned completed pane is closed by Main through this operation;
-there is no unattended auto-close watcher.
+result before issuing `close`. The helper does not judge correctness, review
+findings, or whether a role's lifetime has ended. Main applies the pane lifecycle
+before issuing this operation; there is no unattended auto-close watcher.
 
 Reports remain in the run directory after panes close. `status --all` includes
 closed tasks. Important conclusions belong in Main's summary or the project's
@@ -238,14 +251,16 @@ the missing facts instead of repeating the same request.
 python3 "$helper" send --task "$advisor_task_dir" --task-file "$followup_file"
 ```
 
-For the same question, keep the same pane while Main weighs the recommendation or
-needs follow-up. Send new evidence, changed requirements, and Main's decision rather
-than repeating the entire packet. Main adopts/rejects the advice and closes the pane
-after the consultation is resolved and the current complete report is collected.
+Keep the same Advisor throughout Main's work session. After Main adopts/rejects the
+advice and collects the current complete report, leave the pane idle for later
+consultations. Use `send` with new evidence, changed requirements and assumptions,
+and Main's decision. Main closes the Advisor at overall work-session cleanup, not
+at the end of each question, intermediate reply, or user-input wait.
 Changing roles through `send` is not supported; never reuse this Advisor as the
-independent Reviewer. A substantially different question starts a new Advisor with
-a current packet. If startup fails, use the recovery procedure below rather than
-duplicating the pane or silently switching model/effort.
+independent Reviewer. A new question alone does not require replacement; see
+[advisor.md](advisor.md#main-follow-through) for justified replacement and context
+handoff. If startup fails, use the recovery procedure below rather than duplicating
+the pane or silently switching model/effort.
 
 ## Follow-up and review
 
@@ -258,9 +273,13 @@ new packet. It requires a settled agent so completion of unrelated active work
 cannot satisfy the new request. Re-review packets include the same finding IDs,
 Main's ACCEPT/REJECT/DEFER decisions, the new candidate, and relevant verification.
 
-Keep the Reviewer open until Main ends the review cycle. There is no special
-review-round counter or automatic verdict. `close` has the same mechanism for
-each role, so Main must apply the Reviewer lifecycle policy.
+Keep the responsible Workers and the same Reviewer open until Main ends the review
+cycle. Send Main's accepted findings and bounded fix assignments to the original
+Workers, collect their fixes, then send the updated candidate to the same Reviewer.
+Close resolved participants at cycle completion. A Worker or Design assignment
+without a pending review or follow-up may close after Main accepts its result.
+There is no special review-round counter or automatic verdict. `close` has the
+same mechanism for each role, so Main must apply the pane lifecycle policy.
 
 ## Worker result protocol
 

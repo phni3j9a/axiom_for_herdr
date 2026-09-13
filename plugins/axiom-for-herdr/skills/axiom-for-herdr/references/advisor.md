@@ -85,17 +85,27 @@ decisions and material rejected suggestions with their reasons; turn an adopted
 plan into bounded assignments. Do not repeat a consultation without a new question,
 new evidence, or a concrete unresolved conflict. There is no fixed call quota.
 
-Keep the same Advisor session for follow-ups on the same material question. Send
-new evidence, changed user requirements, Main's decision, and the next question;
-do not resend the entire packet every time. Reconcile stale assumptions explicitly.
-When the topic or underlying scope substantially changes, start a fresh session
-with a current packet. If the previous session is lost, include only the prior
-conclusions and evidence still needed to recover the consultation.
+Once an Advisor is needed, keep the same session throughout Main's work session,
+including later planning, implementation, and review consultations. Send new
+evidence, changed user requirements and assumptions, Main's decision, and the next
+question; do not resend the entire packet every time. Main's conversation is not
+automatically shared with the Advisor. Reconcile stale assumptions explicitly.
+
+A new question within the same work does not by itself require a fresh Advisor.
+Main may replace the session when moving to substantially unrelated work or when
+stale assumptions are causing confusion that warrants a fresh start. Record the
+reason and provide a current packet with only the still-relevant prior conclusions
+and evidence. Retire the old pane using the normal close checks; if its session is
+lost, follow the recovery procedure in operations.md instead of guessing a pane ID.
 
 Do not reuse a planning/advisory participant as the independent Sol Reviewer.
 Astra may help Main understand a review dispute, but does not replace fresh review
-or decide whether to continue its loop. Main ends the consultation after resolving
-the question and collecting the result; retaining a session is not periodic polling.
+or decide whether to continue its loop. After resolving a question and collecting
+its complete report, leave the Advisor idle and available for later consultations.
+Close it when Main wraps up the overall work and performs pane cleanup, following
+the [pane lifecycle](../SKILL.md#pane-lifecycle). Intermediate replies, user-input
+waits, and compaction do not end that lifetime. Retention alone is not a reason for
+new consultations or periodic polling.
 
 If explicit Astra XHIGH routing is unavailable or a call fails, report that fact
 and continue useful work in Main where possible. Do not silently substitute another

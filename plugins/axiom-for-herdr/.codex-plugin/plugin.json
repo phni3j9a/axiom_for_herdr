@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "Axiom for herdr",
     "shortDescription": "Codex\u306e\u62c5\u5f53\u4f5c\u696d\u3092herdr\u306e\u5206\u5272\u30da\u30a4\u30f3\u3067\u898b\u3048\u308b\u5316",
-    "longDescription": "Sol XHIGH\u306eMain\u304c\u3001Luna MAX Fast\u306eworker\u30fbSol MAX\u306edesign\u30fbSol XHIGH\u306ereviewer\u3092herdr\u306e\u5225\u30da\u30a4\u30f3\u3067\u6307\u63ee\u3057\u3001\u7d50\u679c\u56de\u53ce\u5f8c\u306b\u62c5\u5f53\u30da\u30a4\u30f3\u3092\u9589\u3058\u307e\u3059\u3002Axiom\u306e\u5f79\u5272\u5206\u62c5\u3068\u30ec\u30d3\u30e5\u30fc\u7d99\u7d9a\u65b9\u91dd\u3092\u5f15\u304d\u7d99\u304e\u307e\u3059\u3002 \u96e3\u3057\u3044Plan\u306e\u8d77\u8349\u3068\u5224\u65ad\u76f8\u8ac7\u306fAstra XHIGH\u306eAdvisor\u3078\u4f9d\u983c\u3057\u3001\u91cd\u8981\u306a\u4f1a\u8a71\u3068\u8a3c\u62e0\u3060\u3051\u3092\u6e21\u3057\u307e\u3059\u3002\u63a1\u5426\u3068\u6700\u7d42\u53d7\u7406\u306fMain\u304c\u62c5\u5f53\u3057\u307e\u3059\u3002",
+    "longDescription": "Sol XHIGHのMainが、Luna MAX FastのWorker・Sol MAXのDesign・Sol XHIGHのReviewerをherdrの別ペインで指揮します。WorkerとReviewerはレビューサイクル全体で保持し、採用した指摘を元のWorkerへ戻して同じReviewerで再確認します。レビューしない作業は成果受理後に終了します。難しいPlanの起草と判断相談はAstra XHIGHのAdvisorへ依頼し、一度起動したAdvisorはMainの一連の作業が終わるまで保持します。重要な会話と証拠を渡し、採否と最終受理はMainが担当します。",
     "developerName": "phni3j9a",
     "category": "Productivity",
     "capabilities": [
