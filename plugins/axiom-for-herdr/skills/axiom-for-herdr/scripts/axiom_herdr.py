@@ -21,6 +21,7 @@ MODELS = {
     "worker": ("gpt-5.6-luna", "max"),
     "design": ("gpt-5.6-sol", "max"),
     "reviewer": ("gpt-5.6-sol", "xhigh"),
+    "advisor": ("gpt-6-astra", "xhigh"),
 }
 HERE = Path(__file__).resolve()
 SKILL = HERE.parent.parent
@@ -253,13 +254,26 @@ def prepare_request(path, task, source):
     begin = shlex.join(base + ["begin", "--task", str(path), "--request-id", request_id])
     report = shlex.join(base + ["report", "--task", str(path), "--request-id", request_id,
                                 "--status", "complete", "--file", str(path / f"{request_id}.report.md")])
-    role_note = (
-        "Review the candidate read-only. Do not edit project files, commit, format, or auto-fix. "
-        "You may write your report in the assigned task directory. Read "
-        f"{SKILL / 'references' / 'review.md'} before reviewing."
-        if task["role"] == "reviewer" else
-        "Work only within the assigned ownership. Preserve existing user changes."
-    )
+    if task["role"] == "advisor":
+        role_note = (
+            "Advise Main or draft the requested plan; Main decides adoption and acceptance. "
+            "Inspect relevant files read-only. Do not edit project files, implement, commit, "
+            "publish, or run mutating project commands. Write only the assigned report "
+            "and required begin/report protocol metadata in the task directory. "
+            "Request specific missing evidence from Main instead of inventing facts or user agreement; "
+            "use a blocked report when that evidence is needed before a sound recommendation. "
+            "Distinguish provisional advice from a plan ready for Main to adopt. "
+            "You are an advisory participant, not the independent Reviewer. Read "
+            f"{SKILL / 'references' / 'advisor.md'} before advising."
+        )
+    elif task["role"] == "reviewer":
+        role_note = (
+            "Review the candidate read-only. Do not edit project files, commit, format, or auto-fix. "
+            "You may write your report in the assigned task directory. Read "
+            f"{SKILL / 'references' / 'review.md'} before reviewing."
+        )
+    else:
+        role_note = "Work only within the assigned ownership. Preserve existing user changes."
     packet = f"""# Axiom for herdr assignment
 
 Role: {task['role']}. Task: {task['id']}. Request: {request_id}.

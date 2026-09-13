@@ -1,6 +1,6 @@
 ---
 name: axiom-for-herdr
-description: Software engineering coordination through visible herdr panes, combining Sol XHIGH integration, Luna MAX Fast implementation, Sol MAX design, Sol XHIGH independent review, report collection, and pane cleanup.
+description: Software engineering coordination through visible herdr panes, combining Sol XHIGH integration, Astra XHIGH planning and advice, Luna MAX Fast implementation, Sol MAX design, independent Sol review, and pane cleanup.
 ---
 
 # Axiom for herdr
@@ -58,12 +58,13 @@ materially.
 - Worker: `gpt-5.6-luna` / `max` / Fast
 - Design: `gpt-5.6-sol` / `max`
 - Reviewer: `gpt-5.6-sol` / `xhigh`
+- Advisor: `gpt-6-astra` / `xhigh` for both difficult plan drafts and consultations
 
 Main is selected at session startup, for example with
 `codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'` inside herdr.
 The plugin cannot switch the active Main model and does not rewrite global defaults.
 The helper adds `-c 'service_tier="fast"' -c features.fast_mode=true` only for workers.
-Design and reviewer receive no tier override and retain the existing Codex tier settings.
+Design, reviewer, and advisor receive no tier override and retain the existing Codex tier settings.
 Fast is distinct from reasoning effort; verify actual routing from session evidence,
 not just the requested launch arguments.
 
@@ -87,6 +88,29 @@ not just the requested launch arguments.
   `launched_argv` establish what was requested, not a proof of actual model
   execution. Inspect the Codex session evidence if routing is in doubt.
 
+## Astra planning and advice
+
+Read [advisor.md](references/advisor.md) before a consultation. After enough orientation,
+use `advisor` for a difficult plan draft, consequential design trade-off, failure that
+does not converge, changed plan assumptions, unresolved technical review dispute,
+or an explicit user request. A routine plan update or simple edit is not a trigger.
+Main owns adoption, assignment, and final acceptance. Keep the Advisor separate from
+the independent Sol Reviewer.
+
+Write a self-contained task file with selected user/Main dialogue, current agreements
+and constraints, the decision, and primary evidence. Label Main's hypotheses separately;
+do not transfer internal reasoning or full execution transcripts. This helper does not
+automatically export conversation history. Astra can inspect relevant files read-only
+and request missing facts; broad investigation goes back to Main for delegation.
+
+Use `spawn --role advisor` through the visible herdr path in [operations.md](references/operations.md).
+Keep the same Advisor pane for follow-ups on the same question, send new evidence and
+Main's decisions through `send`, and close it after Main resolves the consultation.
+A blocked request for facts keeps the pane open. The helper does not enforce a special
+Advisor lifecycle; Main decides when the consultation is finished. If Astra XHIGH is
+unavailable, disclose the failure and continue useful work in Main without silently
+substituting a model or effort, duplicating the pane, or widening permissions.
+
 ## Child permissions
 
 All delegated roles launch with `--sandbox workspace-write --ask-for-approval never`.
@@ -105,6 +129,10 @@ config overrides so a shared app-server can supply them to tools. These invocati
 overrides do not edit user/project configuration.
 Reviewer project read-only behavior remains a role instruction, not a separate
 read-only sandbox.
+
+The Advisor has the same permissions, with a no-project-edit role instruction;
+only the assigned report and required report-protocol metadata in the task directory
+are writable by its advisory contract.
 
 When permissions block required work, the child publishes `blocked` with the
 operation, target, denial/error, reason, and completed work, then leaves its pane

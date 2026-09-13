@@ -1,6 +1,6 @@
 # Axiom for herdr
 
-**Main thinks. Sol designs. Luna executes. Sol reviews.**
+**Main decides. Astra advises. Sol designs. Luna executes. Sol reviews.**
 
 Codexの担当作業を、herdrの分割ペインで同時に見られるプラグインです。
 Mainが必要な担当を起動し、結果を回収したら担当ペインを閉じます。
@@ -15,6 +15,7 @@ Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法
 | 項目 | 動作 |
 |---|---|
 | Main | Sol XHIGH。左側で判断・分割・統合・最終受理を担当 |
+| 難しい計画・判断相談 | Astra XHIGHをAdvisorとして別ペインで起動。採否はMainが判断 |
 | 通常の調査・実装 | Luna MAX Fastを右側の別ペインで起動 |
 | 重要なUIデザイン | Sol MAXを別ペインで起動 |
 | 独立レビュー | Sol XHIGH。再レビューは同じセッションを継続 |
@@ -35,17 +36,44 @@ Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法
 - Worker: `gpt-5.6-luna` / `max` / Fast
 - Design: `gpt-5.6-sol` / `max`
 - Reviewer: `gpt-5.6-sol` / `xhigh`
+- Advisor: `gpt-6-astra` / `xhigh`（計画作成・相談ともに固定）
 
 Mainはherdr内で`codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'`として
 起動します。プラグインは実行中のMainモデルやグローバル既定値を変更しません。
 補助スクリプトはworkerだけに`-c 'service_tier="fast"' -c features.fast_mode=true`を
-追加します。design・reviewerには速度の上書きを追加せず、既存のCodex設定に従います。
+追加します。design・reviewer・advisorには速度の上書きを追加せず、既存のCodex設定に従います。
 Fastと推論強度の`max`は別設定です。Codexの`fast`はリクエストの`priority`に対応します
 （[公式設定リファレンス](https://learn.chatgpt.com/docs/config-file/config-reference)、
 [Fast mode](https://learn.chatgpt.com/docs/agent-configuration/speed)）。
 
 この割当は更新後に新しく起動する担当に適用します。起動引数は要求の記録であり、
 実際のモデル・推論強度・速度はCodexセッションの証拠で確認します。
+
+## Astra Advisor
+
+難しいPlanの起草、設計案の比較、収束しない失敗、計画の前提変更などで、Mainが
+Astra XHIGHへ相談します。計画作成と短い相談の両方でeffortは`xhigh`固定です。
+MainまたはLunaが必要な現状調査を行ってから依頼し、単純な作業では相談を強制しません。
+
+Mainは重要なユーザー発言・関連会話、現在の合意・制約、相談内容、選んだコードや
+診断結果の抜粋を依頼ファイルへ記述します。Mainの仮説と事実を区別します。
+会話の自動抽出や全履歴の転送は行いません。Astraは必要なファイルを読み取り、
+情報不足なら`blocked`報告で具体的な追加証拠を求めます。
+
+補助スクリプトには`advisor`役を追加しています。既存のrunと絶対パスを使う例です。
+
+```bash
+python3 "$helper" spawn --run "$run_dir" --role advisor \
+  --label '移行計画の相談' --task-file "$consultation_file" --cwd "$project_dir"
+```
+
+同じ論点は同じペインに`send`で追加情報を渡します。Mainが助言の採否を判断し、
+相談を解決して現在の完了報告を回収したらペインを閉じます。追加情報待ちは閉じません。
+Advisorにはプロジェクト編集をしない役割指示を渡し、独立したSol Reviewerには再利用しません。
+Astraが起動できない場合、制約を報告してMainで進められる作業を続けます。
+詳細は[advisor.md](plugins/axiom-for-herdr/skills/axiom-for-herdr/references/advisor.md)と
+[操作手順](plugins/axiom-for-herdr/skills/axiom-for-herdr/references/operations.md#astra-consultations)を参照してください。
+起動引数の模擬確認とherdr実機での動作・品質・消費量の確認は分けて記録します。
 
 ## Luna MAXの経済性
 
@@ -85,7 +113,7 @@ SSH先で使う場合は、そのSSH先でMain・herdr・各担当を動かし�
 
 ## 子の権限と承認
 
-Worker・Design・Reviewerは、全員次の起動引数で固定します。
+Worker・Design・Reviewer・Advisorは、全員次の起動引数で固定します。
 
 ```text
 --sandbox workspace-write --ask-for-approval never
@@ -112,7 +140,7 @@ MainのAuto・Auto-review・フルアクセスなどの選択には追従せず�
 自分の権限・承認ルールで対応してから、同じ担当へ続きを依頼します。
 子の権限を自動で広げることはありません。
 
-Reviewerも同じsandbox設定です。「プロジェクトは編集せず、報告先だけへ出力する」
+Reviewer・Advisorも同じsandbox設定です。「プロジェクトは編集せず、報告先だけへ出力する」
 制約は役割の指示として適用します。
 
 この固定設定は更新後に新しく起動する担当へ適用します。すでに動いている担当の設定を
@@ -233,7 +261,7 @@ Mainには同じ実行セッションを保持し、**結果待ちを1時間（3
 
 依頼ごとにIDを付け、短いMarkdownの報告をJSONの受け渡しファイルへ格納します。
 Mainは報告を読み、差分や検証結果を確認してから、`close`操作で担当を終了します。
-Reviewerはレビュー全体が終わるまで保持します。
+Reviewerはレビュー全体が終わるまで保持します。Advisorは同じ論点の相談中は保持し、Mainが相談を解決して報告を回収したら閉じます。
 
 herdrの`done`だけでペインを閉じることはありません。報告回収後の内容変更、
 担当の稼働状態、元の端末との一致を補助スクリプトで確認します。
@@ -267,7 +295,7 @@ Mainが使う詳しいコマンドは[operations.md](plugins/axiom-for-herdr/ski
 | `.agents/plugins/marketplace.json` | リポジトリのインストール用カタログ |
 | `plugins/axiom-for-herdr/.codex-plugin/plugin.json` | Codexプラグイン定義 |
 | `plugins/axiom-for-herdr/skills/axiom-for-herdr/SKILL.md` | Mainと担当の指針 |
-| 同スキルの`references/` | 操作・レビューの詳細 |
+| 同スキルの`references/` | 操作・Advisor相談・レビューの詳細 |
 | 同スキルの`scripts/axiom_herdr.py` | herdr操作と報告の受け渡し |
 
 ## 参照・ライセンス

@@ -256,6 +256,7 @@ class MainBindingTests(unittest.TestCase):
             "worker": ("gpt-5.6-luna", "max"),
             "design": ("gpt-5.6-sol", "max"),
             "reviewer": ("gpt-5.6-sol", "xhigh"),
+            "advisor": ("gpt-6-astra", "xhigh"),
         }
         for role, (model, effort) in expected_models.items():
             with self.subTest(role=role):
