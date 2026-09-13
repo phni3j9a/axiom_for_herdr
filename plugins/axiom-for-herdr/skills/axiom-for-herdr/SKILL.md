@@ -88,6 +88,12 @@ not just the requested launch arguments.
   `launched_argv` establish what was requested, not a proof of actual model
   execution. Inspect the Codex session evidence if routing is in doubt.
 
+## Long-running monitoring
+
+- Delegate repeated status checks for CI/CD, GitHub Actions, builds, tests, and similar long-running processes to a Luna worker through completion. Monitoring alone is a useful assignment; keep it with the existing Luna responsible for that process when available.
+- Main does not repeatedly check the delegated process or the worker's progress. Continue useful independent work or use the existing run waiter for the report.
+- The Luna worker reports completion, failure, inability to monitor, or a need for Main's judgment, with concise evidence. Do not send Main periodic unchanged-status reports.
+
 ## Astra planning and advice
 
 Read [advisor.md](references/advisor.md) before a consultation. After enough orientation,

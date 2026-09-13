@@ -133,6 +133,14 @@ one local process, without calling Main's model. It prints only when returning:
 a new report/attention notification, no pending tasks, or timeout. Interrupting
 this helper does not stop the workers.
 
+### Delegating process monitoring
+
+For repeated CI/CD, build, test, or similar status checks, follow the
+[monitoring delegation policy](../SKILL.md#long-running-monitoring). Assign completion
+monitoring to the existing responsible Luna or launch a normal `worker`. Include the
+reporting conditions in its assignment. Main waits for that worker's report through
+the same run waiter described below.
+
 ### Waiting without repeatedly waking Main
 
 1. Start `wait --timeout 3600` once after launching independent work. If the exec
