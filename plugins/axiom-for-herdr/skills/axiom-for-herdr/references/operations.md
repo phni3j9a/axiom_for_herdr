@@ -109,7 +109,7 @@ database.
 
 ```sh
 python3 "$helper" status --run "$run_dir"
-python3 "$helper" wait --run "$run_dir" --timeout 3600
+python3 "$helper" wait --run "$run_dir" --until-event
 python3 "$helper" collect --task "$task_dir"
 ```
 
@@ -123,21 +123,23 @@ python3 "$helper" close --task "$task_dir"
 Before starting Main for this workflow, set Codex's
 `background_terminal_max_timeout=3600000`; the recommended invocation is
 `codex -c background_terminal_max_timeout=3600000`. This is a prerequisite for
-the one-hour result wait and is a technical upper bound only: it does not change
-the `yield_time_ms` passed to the result-wait tool. Main must therefore use both
-`background_terminal_max_timeout=3600000` and `yield_time_ms=3600000`. The plugin
-does not modify user settings or claim to reconfigure a running Main after it has
-started.
+a one-hour outer result wait and is a technical upper bound only: it does not
+change the `yield_time_ms` passed to the result-wait tool. Main must therefore use
+both values when exercising that capability. The helper's singleton event wait
+has no internal timeout by default. The plugin does not modify user settings or
+claim to reconfigure a running Main after it has started.
 
 Codex's [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference#background_terminal_max_timeout)
 documents a default of `300000` ms (five minutes). Raising this setting allows the
 longer empty `write_stdin` wait; it does not establish the outer wrapper's limits
 or prove an hour of elapsed waiting.
 
-`wait` samples the task reports and herdr's agent list every two seconds inside
-one local process, without calling Main's model. It prints only when returning:
-a new report/attention notification, no pending tasks, or timeout. Interrupting
-this helper does not stop the workers.
+`wait` samples task reports and herdr's agent list inside one local process,
+backing off from two to ten seconds while state remains stable. This polling does
+not call Main's model. The run-level `wait.lock` permits only one active waiter.
+It prints one structured result when returning: an event, no pending tasks, an
+optional safety timeout, or an existing-waiter identity. Interrupting this helper
+does not stop the workers.
 
 ### Delegating process monitoring
 
@@ -149,49 +151,54 @@ the same run waiter described below.
 
 ### Waiting without repeatedly waking Main
 
-1. Start `wait --timeout 3600` once after launching independent work. If the exec
-   tool yields a running session ID, retain that ID through compaction. Initial
-   process launch may yield sooner; use the fixed continuation wait below.
-2. When Main has no useful independent work, wait on that same session for
-   **3600 seconds (one hour)**. With `write_stdin`, use empty `chars` and
-   **`yield_time_ms=3600000` on every result-wait call**. Do not omit the value,
-   shorten it, or choose an interval based on expected completion, progress
-   commentary, or the "longest allowed" wording. If an outer execution wrapper
-   also yields, use `yield_time_ms=3600000` on its continuation handle as well;
-   do not launch another helper.
-3. If the tool returns with no new output and the session is still running,
-   continue the same session with `yield_time_ms=3600000`. A host that rejects or
-   clamps this value needs the unsupported-host handling below. Do not insert
-   `status`, `read`, transcript scans, short sleeps, or another waiter. Progress
-   commentary follows the session's communication rules and does not require
-   extra state reads.
-4. On events, collect reports or investigate the specific affected task. Resolve
-   what is actionable and retain any deferred blocker in Main's context before
-   waiting for other work. On `pending: 0`, continue integration or finish; do not
-   restart the waiter. On helper timeout, reassess once and start another helper
-   only if work is still expected; retain the one-hour result-wait value.
-   Diagnose helper errors before retrying them.
+1. Start `wait --until-event` once after launching independent work. Omitting both
+   duration options has the same no-internal-timeout behavior. `--timeout` is an
+   optional safety bound and must be at least 3600 seconds in operational use;
+   never use the hidden test switch in a Main workflow.
+2. Retain every returned continuation handle through compaction. A running
+   command's `session_id` belongs to the helper process and is resumed with empty
+   `write_stdin`. A yielded outer wrapper's `cell_id` belongs to the wrapper and
+   is resumed with the wrapper wait operation. They are not interchangeable.
+3. When Main has no useful independent work, wait on those same handles with the
+   longest event-driven interval supported by the host. With the documented
+   one-hour configuration, use `yield_time_ms=3600000`. If either layer yields
+   without terminal helper JSON, immediately resume that same handle. Do not
+   launch another helper, call `status` or `read`, scan transcripts, or publish an
+   unchanged progress message merely because a transport layer yielded.
+4. Interpret terminal JSON by `reason`: collect or investigate the listed task
+   for `event`; continue integration or finish for `no_pending`; resume the
+   retained existing handle for `waiter_already_active`; reassess once after
+   an explicit `safety_timeout`. Diagnose an error before retrying. Start another
+   waiter only after the previous process has actually terminated and more work
+   is still pending.
 
-The helper's `--timeout` is in seconds; the exec tool's result-wait interval is a
-separate setting, often in milliseconds. A one-hour helper does not force Codex
-to wait one hour in a single tool call, and the Main setting alone does not set
-the tool argument. The one-hour value is the result-wait timeout, not a delay
-applied to completed work: reports, attention, process exit, and user steering
-can return earlier and must be handled promptly. Do not pad those returns with
-sleeps. The helper's internal polling remains two seconds.
+| Observation | Authoritative handle | Required action |
+|---|---|---|
+| Command is still running and returns `session_id` | exec session | Empty `write_stdin` to that same ID |
+| Outer wrapper is still running and returns `cell_id` | wrapper cell | Wait on that same cell |
+| No terminal helper JSON | existing handles | Resume; do not query state or start another waiter |
+| `reason: event` | terminal helper result | Handle only the returned events |
+| `reason: no_pending` | terminal helper result | Do not restart waiting |
+| `reason: safety_timeout` | terminal helper result | Reassess once; restart only if still needed |
+| `reason: waiter_already_active` | retained Main context | Resume the retained handle; metadata alone cannot recreate a lost handle |
+
+The helper's optional `--timeout` uses seconds; an exec or wrapper result-wait
+interval commonly uses milliseconds. These are separate controls. Completed
+reports, attention, process exit, and user steering return early and must be
+handled promptly; never pad them with sleeps. The helper's internal polling is
+adaptive between two and ten seconds and does not create Main turns.
 
 **Unsupported host:** if the tool cannot accept/honor 3600000 ms, an outer wrapper
 forces shorter wakeups, or higher-priority rules require shorter waits, record
-and report that specific limitation once. A higher-level policy decision to avoid
-a long wait is not evidence of a technical clamp or upper limit, and a measured
-clamp is not a reason to invent a short polling cadence. Do not reinterpret this
-policy as one-minute polling, repeatedly try shorter waits, change host
-configuration, or claim that one-hour Main wakeups are enforced when they were
-not observed. Preserve the active helper and worker handles. Use an already
-available, permitted event-driven continuation if it can meet the policy;
-otherwise continue useful independent work or surface the waiting limitation
-when no such work remains. This skill cannot override host limits or
-higher-priority instructions and does not install a push mechanism.
+and report that specific limitation once. Treat each early wrapper return as a
+transport yield and resume the same handles without state reads or unchanged
+commentary. Do not shorten the helper timeout, repeatedly start a helper, change
+host configuration, or claim that one-hour Main sleeps were observed when they
+were not. Preserve the active helper and worker handles. Use an available native
+event-driven continuation when permitted; otherwise continue useful independent
+work or surface the waiting limitation when no such work remains. The skill
+cannot override host limits or install a push mechanism, but the run lock still
+prevents duplicate helper polling.
 
 ### Repeated notifications
 
