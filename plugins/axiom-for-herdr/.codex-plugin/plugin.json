@@ -1,6 +1,6 @@
 {
   "name": "axiom-for-herdr",
-  "version": "0.1.0+codex.20260912173335",
+  "version": "0.1.0+codex.20260915151652",
   "description": "Axiom orchestration with visible Codex workers, Astra XHIGH advisors, and independent reviewers in herdr panes.",
   "author": {
     "name": "phni3j9a",
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "Axiom for herdr",
     "shortDescription": "Codex\u306e\u62c5\u5f53\u4f5c\u696d\u3092herdr\u306e\u5206\u5272\u30da\u30a4\u30f3\u3067\u898b\u3048\u308b\u5316",
-    "longDescription": "Sol XHIGHのMainが、Luna MAX FastのWorker・Sol MAXのDesign・Sol XHIGHのReviewerをherdrの別ペインで指揮します。WorkerとReviewerはレビューサイクル全体で保持し、採用した指摘を元のWorkerへ戻して同じReviewerで再確認します。レビューしない作業は成果受理後に終了します。難しいPlanの起草と判断相談はAstra XHIGHのAdvisorへ依頼し、一度起動したAdvisorはMainの一連の作業が終わるまで保持します。重要な会話と証拠を渡し、採否と最終受理はMainが担当します。",
+    "longDescription": "Sol XHIGH\u306eMain\u304c\u3001Luna MAX Fast\u306eWorker\u30fbSol MAX\u306eDesign\u30fbSol XHIGH\u306eReviewer\u3092herdr\u306e\u5225\u30da\u30a4\u30f3\u3067\u6307\u63ee\u3057\u307e\u3059\u3002Worker\u3068Reviewer\u306f\u30ec\u30d3\u30e5\u30fc\u30b5\u30a4\u30af\u30eb\u5168\u4f53\u3067\u4fdd\u6301\u3057\u3001\u63a1\u7528\u3057\u305f\u6307\u6458\u3092\u5143\u306eWorker\u3078\u623b\u3057\u3066\u540c\u3058Reviewer\u3067\u518d\u78ba\u8a8d\u3057\u307e\u3059\u3002\u30ec\u30d3\u30e5\u30fc\u3057\u306a\u3044\u4f5c\u696d\u306f\u6210\u679c\u53d7\u7406\u5f8c\u306b\u7d42\u4e86\u3057\u307e\u3059\u3002\u96e3\u3057\u3044Plan\u306e\u8d77\u8349\u3068\u5224\u65ad\u76f8\u8ac7\u306fAstra XHIGH\u306eAdvisor\u3078\u4f9d\u983c\u3057\u3001\u4e00\u5ea6\u8d77\u52d5\u3057\u305fAdvisor\u306fMain\u306e\u4e00\u9023\u306e\u4f5c\u696d\u304c\u7d42\u308f\u308b\u307e\u3067\u4fdd\u6301\u3057\u307e\u3059\u3002\u91cd\u8981\u306a\u4f1a\u8a71\u3068\u8a3c\u62e0\u3092\u6e21\u3057\u3001\u63a1\u5426\u3068\u6700\u7d42\u53d7\u7406\u306fMain\u304c\u62c5\u5f53\u3057\u307e\u3059\u3002",
     "developerName": "phni3j9a",
     "category": "Productivity",
     "capabilities": [
