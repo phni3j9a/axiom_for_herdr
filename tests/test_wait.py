@@ -28,6 +28,7 @@ class WaitTests(unittest.TestCase):
         self.agents = {}
         self.clock = 0
         self.samples = 0
+        self.sleeps = []
         self.on_sleep = None
         self.closed_panes = []
 
@@ -53,6 +54,7 @@ class WaitTests(unittest.TestCase):
             self.addCleanup(mocked.stop)
 
     def sleep(self, seconds):
+        self.sleeps.append(seconds)
         self.clock += seconds
         if self.on_sleep:
             callback, self.on_sleep = self.on_sleep, None
@@ -84,7 +86,17 @@ class WaitTests(unittest.TestCase):
         return json.loads(output.getvalue())
 
     def wait(self, timeout=4):
-        return self.invoke(helper.wait, run=str(self.run), timeout=timeout)
+        return self.invoke(helper.wait, run=str(self.run), timeout=timeout,
+                           until_event=False, test_short_wait=True)
+
+    def assert_wait(self, result, reason, *, events, pending, timeout=False):
+        self.assertEqual(result["reason"], reason)
+        self.assertEqual(result["events"], events)
+        self.assertEqual(result["pending"], pending)
+        self.assertIsInstance(result["wait_id"], str)
+        self.assertGreater(len(result["wait_id"]), 0)
+        self.assertGreaterEqual(result["elapsed_seconds"], 0)
+        self.assertEqual(result.get("timeout", False), timeout)
 
     def test_unchanged_attention_survives_wait_restart_without_repeating(self):
         for state, event in (("blocked", "blocked"), ("unknown", "unknown"),
@@ -108,7 +120,7 @@ class WaitTests(unittest.TestCase):
         self.report(path, "blocked")
         self.assertEqual(self.wait()["events"][0]["event"], "report_ready")
         self.invoke(helper.collect, task=str(path))
-        self.assertEqual(self.wait(), {"events": [], "pending": 1, "timeout": True})
+        self.assert_wait(self.wait(), "safety_timeout", events=[], pending=1, timeout=True)
         self.report(path, "blocked", "A different question")
         self.assertEqual(len(self.wait()["events"]), 1)
 
@@ -162,21 +174,52 @@ class WaitTests(unittest.TestCase):
             helper.close(argparse.Namespace(task=str(path)))
         report = self.invoke(helper.collect, task=str(path))
         self.assertEqual(report["result"]["report"], "Report")
-        self.assertEqual(self.wait(), {"events": [], "pending": 0})
+        self.assert_wait(self.wait(), "no_pending", events=[], pending=0)
         self.assertEqual(self.closed_panes, [])
         self.invoke(helper.close, task=str(path))
         self.assertEqual(self.closed_panes, [("pane", "close", "one")])
-        self.assertEqual(self.wait(), {"events": [], "pending": 0})
+        self.assert_wait(self.wait(), "no_pending", events=[], pending=0)
 
-    def test_running_worker_waits_quietly_until_timeout(self):
+    def test_running_worker_backs_off_quietly_until_timeout(self):
         self.task()
-        self.assertEqual(self.wait(), {"events": [], "pending": 1, "timeout": True})
-        self.assertEqual(self.clock, 4)
+        self.assert_wait(self.wait(timeout=20), "safety_timeout",
+                         events=[], pending=1, timeout=True)
+        self.assertEqual(self.clock, 20)
+        self.assertEqual(self.sleeps, [2, 4, 8, 6])
         self.assertGreater(self.samples, 1)
 
     def test_empty_run_returns_without_sleep(self):
-        self.assertEqual(self.wait(), {"events": [], "pending": 0})
+        self.assert_wait(self.wait(), "no_pending", events=[], pending=0)
         self.assertEqual(self.clock, 0)
+
+    def test_second_waiter_returns_active_waiter_without_polling(self):
+        self.task()
+        lock, identity = helper.acquire_waiter(self.run)
+        self.addCleanup(lock.close)
+        samples = self.samples
+
+        result = self.wait()
+
+        self.assertEqual(result["reason"], "waiter_already_active")
+        self.assertEqual(result["wait_id"], identity["wait_id"])
+        self.assertEqual(result["active_waiter"], identity)
+        self.assertIsNone(result["pending"])
+        self.assertEqual(result["events"], [])
+        self.assertEqual(self.samples, samples)
+        self.assertEqual(self.sleeps, [])
+
+    def test_short_operational_timeout_is_rejected(self):
+        self.task()
+        with self.assertRaisesRegex(helper.Failure, "at least 3600 seconds"):
+            helper.wait(argparse.Namespace(run=str(self.run), timeout=55,
+                                           until_event=False, test_short_wait=False))
+        self.assertEqual(self.samples, 0)
+
+    def test_wait_parser_defaults_to_no_internal_timeout(self):
+        options = helper.parser().parse_args(["wait", "--run", str(self.run)])
+        self.assertIsNone(options.timeout)
+        self.assertFalse(options.until_event)
+        self.assertFalse(options.test_short_wait)
 
 
 if __name__ == "__main__":

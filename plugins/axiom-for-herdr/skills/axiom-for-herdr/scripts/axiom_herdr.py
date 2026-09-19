@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -25,6 +26,9 @@ MODELS = {
 }
 HERE = Path(__file__).resolve()
 SKILL = HERE.parent.parent
+MIN_WAIT_TIMEOUT_SECONDS = 3600
+WAIT_POLL_INITIAL_SECONDS = 2
+WAIT_POLL_MAX_SECONDS = 10
 
 
 class Failure(Exception):
@@ -497,66 +501,154 @@ def status(args):
     emit({"run": str(run_dir), "tasks": rows})
 
 
+def acquire_waiter(run_dir):
+    """Acquire the one active waiter slot for a run and record its identity."""
+    lock_path = Path(run_dir) / "wait.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    lock = os.fdopen(descriptor, "r+", encoding="utf-8")
+    try:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock.seek(0)
+        try:
+            active = json.load(lock)
+        except (ValueError, OSError):
+            active = {}
+        lock.close()
+        return None, active
+
+    identity = {
+        "wait_id": uuid.uuid4().hex[:12],
+        "pid": os.getpid(),
+        "started_at": time.time(),
+    }
+    lock.seek(0)
+    lock.truncate()
+    json.dump(identity, lock, ensure_ascii=False)
+    lock.write("\n")
+    lock.flush()
+    os.fsync(lock.fileno())
+    return lock, identity
+
+
+def wait_output(identity, started, reason, *, events, pending, timeout=False, active_waiter=None):
+    value = {
+        "wait_id": identity.get("wait_id"),
+        "reason": reason,
+        "elapsed_seconds": round(max(0, time.monotonic() - started), 3),
+        "events": events,
+        "pending": pending,
+    }
+    if timeout:
+        value["timeout"] = True
+    if active_waiter is not None:
+        value["active_waiter"] = active_waiter
+    emit(value)
+
+
 def wait(args):
     run_dir, run = load_run(args.run)
     herdr = Herdr(run)
     main_only(run, herdr)
-    notice_path = run_dir / "wait-notices.json"
-    previous = read_json(notice_path) if notice_path.exists() else {}
-    deadline = time.monotonic() + args.timeout
-    while True:
-        agents = herdr.agents()
-        events, pending = [], 0
-        current = {}
-        for path, task in tasks_in(run_dir):
-            if task.get("closed"):
-                continue
-            result, collected = result_for(path, task), collected_for(path)
-            agent = agents.get(task["name"])
-            if agent and agent["terminal_id"] != task.get("terminal_id"):
-                agent = None
-            unchanged = result and collected and digest(result) == collected["digest"]
-            if (unchanged and collected.get("ready") and result["status"] == "complete"
-                    and agent and ready(agent)
-                    and agent["state_change_seq"] == collected.get("state_change_seq")):
-                continue
-            pending += 1
-            event = None
-            if agent is None:
-                event = "agent_unavailable"
-            elif agent["agent_status"] in ("blocked", "unknown"):
-                event = agent["agent_status"]
-            elif ready(agent) and result and result["status"] in ("complete", "blocked"):
-                event = "report_ready" if not unchanged else "activity_since_collection"
-            elif ready(agent) and time.time() - task.get("submitted_at", 0) > 8:
-                event = "idle_without_report"
-            if event:
-                # Collection alone is not new activity. Ignore the display event's
-                # report_ready -> activity_since_collection rename in that case.
-                kind = "report" if event in ("report_ready", "activity_since_collection") else event
-                fingerprint = digest(dict(
-                    request_id=task["request_id"], event=kind, result=result,
-                    agent={key: (agent or {}).get(key) for key in
-                           ("terminal_id", "agent_status", "state_change_seq", "launch_pending")},
-                ))
-                current[str(path)] = fingerprint
-                if previous.get(str(path)) != fingerprint:
-                    events.append({"task": str(path), "event": event,
-                                   "pane_id": (agent or {}).get("pane_id", task.get("pane_id"))})
-        # Persist across wait invocations. Resolved/closed tasks disappear from the
-        # snapshot, so a later recurrence can notify again. This is not a receipt:
-        # status/collect still expose outstanding work, and close keeps its checks.
-        if current != previous:
-            atomic_json(notice_path, current)
-            previous = current
-        if events or not pending:
-            emit({"events": events, "pending": pending})
-            return
-        if time.monotonic() >= deadline:
-            emit({"events": [], "pending": pending, "timeout": True})
-            return
-        # Poll locally; Main does not spend turns polling each terminal.
-        time.sleep(min(2, max(0, deadline - time.monotonic())))
+    timeout = getattr(args, "timeout", None)
+    if timeout is not None:
+        if timeout <= 0:
+            raise Failure("--timeout must be greater than zero.")
+        if timeout < MIN_WAIT_TIMEOUT_SECONDS and not getattr(args, "test_short_wait", False):
+            raise Failure(
+                f"Operational waits must be at least {MIN_WAIT_TIMEOUT_SECONDS} seconds. "
+                "Use --until-event for normal operation; short waits are test-only."
+            )
+
+    started = time.monotonic()
+    lock, identity = acquire_waiter(run_dir)
+    if lock is None:
+        wait_output(identity, started, "waiter_already_active", events=[], pending=None,
+                    active_waiter=identity)
+        return
+
+    try:
+        notice_path = run_dir / "wait-notices.json"
+        previous = read_json(notice_path) if notice_path.exists() else {}
+        deadline = started + timeout if timeout is not None else None
+        poll_interval = WAIT_POLL_INITIAL_SECONDS
+        last_observation = None
+        while True:
+            agents = herdr.agents()
+            events, pending = [], 0
+            current, observation = {}, {}
+            for path, task in tasks_in(run_dir):
+                if task.get("closed"):
+                    continue
+                result, collected = result_for(path, task), collected_for(path)
+                agent = agents.get(task["name"])
+                if agent and agent["terminal_id"] != task.get("terminal_id"):
+                    agent = None
+                observation[str(path)] = {
+                    "request_id": task.get("request_id"),
+                    "result": digest(result) if result else None,
+                    "collected": digest(collected) if collected else None,
+                    "agent": {key: (agent or {}).get(key) for key in
+                              ("terminal_id", "agent_status", "state_change_seq", "launch_pending")},
+                }
+                unchanged = result and collected and digest(result) == collected["digest"]
+                if (unchanged and collected.get("ready") and result["status"] == "complete"
+                        and agent and ready(agent)
+                        and agent["state_change_seq"] == collected.get("state_change_seq")):
+                    continue
+                pending += 1
+                event = None
+                if agent is None:
+                    event = "agent_unavailable"
+                elif agent["agent_status"] in ("blocked", "unknown"):
+                    event = agent["agent_status"]
+                elif ready(agent) and result and result["status"] in ("complete", "blocked"):
+                    event = "report_ready" if not unchanged else "activity_since_collection"
+                elif ready(agent) and time.time() - task.get("submitted_at", 0) > 8:
+                    event = "idle_without_report"
+                if event:
+                    # Collection alone is not new activity. Ignore the display event's
+                    # report_ready -> activity_since_collection rename in that case.
+                    kind = "report" if event in ("report_ready", "activity_since_collection") else event
+                    fingerprint = digest(dict(
+                        request_id=task["request_id"], event=kind, result=result,
+                        agent={key: (agent or {}).get(key) for key in
+                               ("terminal_id", "agent_status", "state_change_seq", "launch_pending")},
+                    ))
+                    current[str(path)] = fingerprint
+                    if previous.get(str(path)) != fingerprint:
+                        events.append({"task": str(path), "event": event,
+                                       "pane_id": (agent or {}).get("pane_id", task.get("pane_id"))})
+            # Persist across wait invocations. Resolved/closed tasks disappear from the
+            # snapshot, so a later recurrence can notify again. This is not a receipt:
+            # status/collect still expose outstanding work, and close keeps its checks.
+            if current != previous:
+                atomic_json(notice_path, current)
+                previous = current
+            if events:
+                wait_output(identity, started, "event", events=events, pending=pending)
+                return
+            if not pending:
+                wait_output(identity, started, "no_pending", events=[], pending=0)
+                return
+            if deadline is not None and time.monotonic() >= deadline:
+                wait_output(identity, started, "safety_timeout", events=[], pending=pending,
+                            timeout=True)
+                return
+
+            signature = digest(observation)
+            if signature == last_observation:
+                poll_interval = min(WAIT_POLL_MAX_SECONDS, poll_interval * 2)
+            else:
+                poll_interval = WAIT_POLL_INITIAL_SECONDS
+                last_observation = signature
+            sleep_for = poll_interval
+            if deadline is not None:
+                sleep_for = min(sleep_for, max(0, deadline - time.monotonic()))
+            # This backoff happens inside one process and never wakes Main's model.
+            time.sleep(sleep_for)
+    finally:
+        lock.close()
 
 
 def collect(args):
@@ -670,7 +762,12 @@ def parser():
     q.set_defaults(fn=status)
     q = sub.add_parser("wait", help="Wait for a report or attention from any owned task")
     q.add_argument("--run", required=True)
-    q.add_argument("--timeout", type=float, default=3600)
+    duration = q.add_mutually_exclusive_group()
+    duration.add_argument("--until-event", action="store_true",
+                          help="Wait until an event or no pending tasks (the default)")
+    duration.add_argument("--timeout", type=float,
+                          help="Optional safety timeout in seconds; must be at least 3600")
+    q.add_argument("--test-short-wait", action="store_true", help=argparse.SUPPRESS)
     q.set_defaults(fn=wait)
     for name, fn in (("collect", collect), ("close", close), ("read", read)):
         q = sub.add_parser(name)

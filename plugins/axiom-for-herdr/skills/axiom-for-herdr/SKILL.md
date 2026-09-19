@@ -177,36 +177,45 @@ or asks about layout when necessary; do not bypass visibility with hidden agents
 
 Before starting Main for this workflow, set Codex's
 `background_terminal_max_timeout=3600000`; the recommended invocation is
-`codex -c background_terminal_max_timeout=3600000`. This prerequisite sets a
-technical upper bound for the one-hour wait, but it does not change the actual
-`yield_time_ms`, so both settings are required. The plugin does not edit user
-settings and does not reconfigure a running Main after startup.
+`codex -c background_terminal_max_timeout=3600000`. This sets the technical
+upper bound for a one-hour outer result wait, but it does not change the actual
+`yield_time_ms`; pass both values when using that host capability. The helper's
+singleton event wait does not depend on an internal one-hour timeout. The plugin
+does not edit user settings or reconfigure a running Main after startup.
 
-Use one `wait --timeout 3600` process per run to watch all owned tasks. Its local
-two-second polling does not invoke Main's model. Retain its exec session handle
-and resume that handle with a **fixed one-hour result wait: 3600 seconds /
-`yield_time_ms=3600000`**. This is a required value, not a default or an invitation
-to choose the "longest allowed" interval. Do not shorten it at Main's discretion
-or substitute a short poll. Use the same value for a yielded outer wrapper.
-Reports, attention, process exit, and user steering may return control earlier;
-handle them immediately rather than delaying them until one hour elapses.
-The helper timeout and the tool's result-wait interval are separate; setting only
-the former does not prevent frequent Main wakeups. If the host cannot honor this
-value or higher-priority rules prohibit it, follow the unsupported-host procedure
-in operations.md; do not silently fall back to shorter polling. Do not confuse a
-higher-level operations decision to avoid a long wait with an observed technical
-clamp or upper limit.
-Do not use short/default result polls, duplicate waiters, or periodic `status`,
-`read`, and transcript scans simply to check progress. Follow the concrete
-waiting procedure in operations.md and remain responsive to user steering.
+Use one `wait --until-event` process per run to watch all owned tasks. The helper
+enforces this invariant with a run-level lock: a duplicate exits with
+`reason: waiter_already_active` and identifies the existing waiter. Normal waits
+have no helper timeout. An optional operational `--timeout` must be at least 3600
+seconds; shorter values require the hidden test-only switch and are never a Main
+polling mechanism. Local polling backs off from two to ten seconds without
+invoking Main's model.
 
-Unchanged notifications are suppressed across waits; new requests, reports, or
-agent state changes can notify again. A suppressed notification is still pending
-work, not acceptance or resolution. Handle each returned event before waiting
-again, or explicitly retain its blocker while other workers proceed. Do not
-restart waiting when no tasks are pending, or retry a helper error without
-diagnosing it. After timeout, reassess the work once before continuing the fixed
-one-hour result wait.
+Keep the wait's two continuation handles distinct. A yielded command has an exec
+`session_id`; resume that exact process with empty `write_stdin`. A yielded outer
+wrapper has a `cell_id`; resume that exact wrapper cell. A wrapper yield with no
+terminal helper JSON is only a transport yield: do not launch another helper,
+call `status` or `read`, scan transcripts, or post unchanged progress commentary.
+Only terminal helper JSON (`event`, `no_pending`, `safety_timeout`,
+`waiter_already_active`, or an error) permits a state transition. See the concrete
+state table in operations.md.
+
+Use the longest event-driven result wait supported by the active host; with the
+documented one-hour configuration, pass `yield_time_ms=3600000`. Reports,
+attention, process exit, and user steering may return control earlier and must be
+handled immediately. If the host cannot honor the requested result wait or
+higher-priority rules prohibit it, follow the unsupported-host procedure in
+operations.md. Preserve the existing helper and resume its handles instead of
+converting the limitation into shorter helper waits. The invariant is one live
+waiter until an event, not a particular number of elapsed milliseconds.
+
+Unchanged notifications are suppressed across completed waits; new requests,
+reports, or agent state changes can notify again. A suppressed notification is
+still pending work, not acceptance or resolution. Handle each returned event
+before waiting again, or explicitly retain its blocker while other workers
+proceed. Do not restart waiting when no tasks are pending, or retry a helper error without
+diagnosing it. After an explicit safety timeout, reassess once before starting a
+new event wait.
 
 ## Pane lifecycle
 
