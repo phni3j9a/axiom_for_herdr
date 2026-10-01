@@ -106,8 +106,8 @@ Mainのコンテキストを守る、大量の調査ログを担当側に留め�
 - LinuxまたはmacOSを初版の対象とします。
 - Python 3.10以上。追加のpipパッケージは不要です。
 - 同じホストで動くherdrとCodex CLI。両方が`PATH`から見えること。
-- herdr内のペインでMainのCodexを起動すること。
-- Codexのプラグイン機能と、上記モデルを利用できること。
+- herdr内のペインでMain（CodexまたはClaude Code）を起動すること。
+- 担当を起動するCodexのプラグイン機能と、上記モデルを利用できること。
 
 実装は2026年9月のherdr公式CLI/API定義を参照しています。対応する操作は
 `pane current/get/list/layout/split/rename/close`、`agent list/start/prompt/read`です。
@@ -198,6 +198,31 @@ $axiom-for-herdr:axiom-for-herdr
 呼び出された作業内では、必要な担当の起動・レビュー・結果回収・ペインの後片付けを行います。
 `AXIOM_HERDR_ROLE`または依頼内容で担当として識別された
 Codexは、さらに別の担当を起動せず、割り当てられた作業を実行します。
+
+## Claude Codeへのインストール
+
+Claude CodeをMainにする場合は、このリポジトリをマーケットプレイスとして追加します。
+担当は従来どおりCodexで起動するため、Codex CLIと各モデルも必要です。
+
+```bash
+claude plugin marketplace add phni3j9a/axiom_for_herdr
+claude plugin install axiom-for-herdr@axiom-for-herdr
+```
+
+Claude Code用の`plugin.json`には`version`を書いていません。Claude Codeはコミットの
+SHAを版として扱うため、`main`の更新は次の手順で取り込めます。
+
+```bash
+claude plugin marketplace update axiom-for-herdr
+claude plugin update axiom-for-herdr@axiom-for-herdr
+```
+
+herdr内のペインでClaude Codeを起動し、`/axiom-for-herdr:axiom-for-herdr`で明示呼び出しします。
+自動選択はされません（`disable-model-invocation: true`）。Claude CodeにはCodexの会話IDがないため、
+`init`は呼び出し元のherdr端末にrunを結び付けます。待機はバックグラウンドのBashで
+`wait --until-event`を1本だけ動かし、終了通知で再開します。Mainのモデルは
+Claude Codeのセッションのモデルで、Sol XHIGHの起動指定は適用しません。
+詳細は[`references/claude-code.md`](plugins/axiom-for-herdr/skills/axiom-for-herdr/references/claude-code.md)を参照してください。
 
 ## 共有app-serverでMainを登録する
 
@@ -343,8 +368,10 @@ Mainが使う詳しいコマンドは[operations.md](plugins/axiom-for-herdr/ski
 |---|---|
 | `.agents/plugins/marketplace.json` | リポジトリのインストール用カタログ |
 | `plugins/axiom-for-herdr/.codex-plugin/plugin.json` | Codexプラグイン定義 |
+| `.claude-plugin/marketplace.json` | Claude Code用のマーケットプレイス定義 |
+| `plugins/axiom-for-herdr/.claude-plugin/plugin.json` | Claude Codeプラグイン定義 |
 | `plugins/axiom-for-herdr/skills/axiom-for-herdr/SKILL.md` | Mainと担当の指針 |
-| 同スキルの`references/` | 操作・Advisor相談・レビューの詳細 |
+| 同スキルの`references/` | 操作・Advisor相談・レビュー・Claude Code Mainの詳細 |
 | 同スキルの`scripts/axiom_herdr.py` | herdr操作と報告の受け渡し |
 
 ## 参照・ライセンス
