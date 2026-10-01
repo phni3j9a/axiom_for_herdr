@@ -1,6 +1,7 @@
 ---
 name: axiom-for-herdr
 description: Software engineering coordination through visible herdr panes, combining Sol XHIGH integration, Astra XHIGH planning and advice, Luna MAX Fast implementation, Sol MAX design, independent Sol review, and pane cleanup.
+disable-model-invocation: true
 ---
 
 # Axiom for herdr
@@ -20,15 +21,18 @@ its begin/report contract. Do not create subagents, initialize another run, or
 manage panes. This applies even if ordinary Axiom guidance is also available.
 
 Otherwise you are Main. Use this skill's herdr path for delegation during this
-task; do not also delegate the same work with ordinary Axiom or `spawn_agent`.
+task; do not also delegate the same work with ordinary Axiom, `spawn_agent`, or
+Claude Code's Agent tool.
 Appropriate delegation is within the requested engineering task, subject to
 its existing permissions. Nothing here grants broader filesystem, command,
 network, approval, publishing, or repository-mutation permissions.
 
-This plugin needs a Main Codex running inside herdr on the host where the other
-Codex processes run. If that surface is unavailable, explain the missing
-capability and continue useful work in Main. Do not pretend that hidden workers
-provide the requested visibility.
+This plugin needs a Main running inside herdr on the host where the other
+Codex processes run. Main is normally Codex; Claude Code can also be Main. If you
+are Claude Code, read [claude-code.md](references/claude-code.md) first: it replaces
+the Codex-specific Main identity, model, and waiting mechanics described below.
+If that surface is unavailable, explain the missing capability and continue useful
+work in Main. Do not pretend that hidden workers provide the requested visibility.
 
 ## Luna economics
 

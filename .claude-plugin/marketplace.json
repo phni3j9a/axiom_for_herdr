@@ -1,0 +1,17 @@
+{
+  "name": "axiom-for-herdr",
+  "owner": {
+    "name": "phni3j9a"
+  },
+  "metadata": {
+    "description": "Axiom for herdr: Main coordinates visible Codex workers, advisors, and reviewers in herdr panes."
+  },
+  "plugins": [
+    {
+      "name": "axiom-for-herdr",
+      "source": "./plugins/axiom-for-herdr",
+      "description": "Explicit-only Axiom workflow for a Main running inside herdr: Luna workers, Sol design and review, and Astra advice in visible Codex panes.",
+      "category": "productivity"
+    }
+  ]
+}
