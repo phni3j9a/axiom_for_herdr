@@ -1,0 +1,6 @@
+{
+  "worker": {"model": "gpt-6-luna", "effort": "max", "service_tier": "fast"},
+  "design": {"model": "gpt-6.1-sol", "effort": "max", "service_tier": null},
+  "reviewer": {"model": "gpt-6.1-sol", "effort": "high", "service_tier": null},
+  "advisor": {"model": "gpt-6-astra", "effort": "xhigh", "service_tier": null}
+}

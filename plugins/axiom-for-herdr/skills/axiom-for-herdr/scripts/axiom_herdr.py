@@ -18,11 +18,11 @@ import time
 import uuid
 
 
-MODELS = {
-    "worker": ("gpt-5.6-luna", "max"),
-    "design": ("gpt-5.6-sol", "max"),
-    "reviewer": ("gpt-5.6-sol", "xhigh"),
-    "advisor": ("gpt-6-astra", "xhigh"),
+DEFAULT_MODELS = {
+    "worker": {"model": "gpt-6-luna", "effort": "max", "service_tier": "fast"},
+    "design": {"model": "gpt-6.1-sol", "effort": "max", "service_tier": None},
+    "reviewer": {"model": "gpt-6.1-sol", "effort": "high", "service_tier": None},
+    "advisor": {"model": "gpt-6-astra", "effort": "xhigh", "service_tier": None},
 }
 HERE = Path(__file__).resolve()
 SKILL = HERE.parent.parent
@@ -41,6 +41,63 @@ def emit(value):
 
 def read_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def validate_model_settings(settings, location):
+    if not isinstance(settings, dict):
+        raise Failure(f"{location}: expected an object with model, effort, or service_tier.")
+    for key, value in settings.items():
+        if key not in ("model", "effort", "service_tier"):
+            raise Failure(f"{location}: unknown setting {key!r}.")
+        if key == "service_tier" and value is None:
+            continue
+        if (not isinstance(value, str) or not value or value.startswith("-")
+                or any(c.isspace() or not c.isprintable() for c in value)):
+            raise Failure(f"{location}.{key}: expected a nonempty token"
+                          + (" or null." if key == "service_tier" else "."))
+
+
+def load_model_settings(config_path=None):
+    """Merge one user-selected JSON file over defaults; never edit user config."""
+    selected = config_path or os.environ.get("AXIOM_HERDR_MODEL_CONFIG")
+    config_home = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    path = Path(selected).expanduser() if selected else config_home / "axiom-for-herdr" / "models.json"
+    path = path.resolve()
+    models = {role: dict(settings) for role, settings in DEFAULT_MODELS.items()}
+    try:
+        overrides = read_json(path)
+    except FileNotFoundError as exc:
+        if selected:
+            raise Failure(f"Model config not found: {path}") from exc
+        return models, path, False
+    except (OSError, ValueError) as exc:
+        raise Failure(f"Cannot read model config {path}: {exc}") from exc
+    if not isinstance(overrides, dict):
+        raise Failure(f"Model config {path}: expected an object keyed by role.")
+    for role, settings in overrides.items():
+        if role not in DEFAULT_MODELS:
+            raise Failure(f"Model config {path}: unknown role {role!r}; "
+                          "Main is configured at session startup.")
+        validate_model_settings(settings, f"{path}:{role}")
+        models[role].update(settings)
+    return models, path, True
+
+
+def resolve_model_settings(args):
+    models, path, loaded = load_model_settings(getattr(args, "model_config", None))
+    overrides = {key: getattr(args, key) for key in ("model", "effort", "service_tier")
+                 if getattr(args, key, None) is not None}
+    if overrides.get("service_tier") == "inherit":
+        overrides["service_tier"] = None
+    validate_model_settings(overrides, "launch override")
+    settings = models[args.role]
+    settings.update(overrides)
+    return settings, str(path) if loaded else None
+
+
+def show_models(args):
+    models, path, loaded = load_model_settings(args.model_config)
+    emit({"config_path": str(path), "config_loaded": loaded, "roles": models})
 
 
 def atomic_json(path, value):
@@ -180,7 +237,7 @@ def resolve_bound_main(run, herdr, thread_id):
 
 
 def main_only(run, herdr):
-    if os.environ.get("AXIOM_HERDR_ROLE") in MODELS:
+    if os.environ.get("AXIOM_HERDR_ROLE") in DEFAULT_MODELS:
         raise Failure("Delegated sessions may report results, but only Main manages panes.")
     if "main_thread_id" in run:
         expected_thread_id = run.get("main_thread_id")
@@ -339,7 +396,7 @@ def submit(path, task, herdr):
 
 
 def init(args):
-    if os.environ.get("AXIOM_HERDR_ROLE") in MODELS:
+    if os.environ.get("AXIOM_HERDR_ROLE") in DEFAULT_MODELS:
         raise Failure("A delegated session cannot initialize an orchestration run.")
     main_pane_id = getattr(args, "main_pane", None)
     main_terminal_id = getattr(args, "main_terminal_id", None)
@@ -390,11 +447,12 @@ def spawn(args):
         raise Failure("Worker cwd must be an existing directory.")
     # Read before creating any terminal.
     Path(args.task_file).expanduser().resolve().read_text(encoding="utf-8")
+    settings, model_config_path = resolve_model_settings(args)
     path = run_dir / "tasks" / uuid.uuid4().hex[:10]
     path.mkdir(mode=0o700)
-    model, effort = MODELS[args.role]
     task = dict(id=path.name, run_dir=str(run_dir), name=f"ah-{run['id']}-{path.name}",
-                role=args.role, label=args.label, cwd=str(cwd), model=model, effort=effort)
+                role=args.role, label=args.label, cwd=str(cwd),
+                model_config_path=model_config_path, **settings)
     prepare_request(path, task, args.task_file)
     # Output the handle before any pane mutation so partial failures remain inspectable.
     emit({"task": str(path), "name": task["name"], "request_id": task["request_id"]})
@@ -424,10 +482,13 @@ def spawn(args):
     task.update(pane_id=pane["pane_id"], terminal_id=pane["terminal_id"])
     save_task(path, task)
     herdr.call("pane", "rename", pane["pane_id"], f"{args.role} · {args.label}")
-    argv = ["-C", str(cwd), "-m", model, "-c", f'model_reasoning_effort="{effort}"',
+    argv = ["-C", str(cwd), "-m", settings["model"],
+            "-c", f'model_reasoning_effort={json.dumps(settings["effort"])}',
             "-c", 'default_permissions=":workspace"']
-    if args.role == "worker":
-        argv.extend(["-c", 'service_tier="fast"', "-c", "features.fast_mode=true"])
+    if settings["service_tier"] is not None:
+        argv.extend(["-c", f'service_tier={json.dumps(settings["service_tier"])}'])
+        if settings["service_tier"] == "fast":
+            argv.extend(["-c", "features.fast_mode=true"])
     context = [
         ("AXIOM_HERDR_ROLE", args.role),
         ("AXIOM_HERDR_TASK", path),
@@ -728,6 +789,9 @@ def doctor(args):
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="action", required=True)
+    q = sub.add_parser("models", help="Show merged model settings without starting agents")
+    q.add_argument("--model-config", help="Use this JSON file instead of the user model config")
+    q.set_defaults(fn=show_models)
     q = sub.add_parser("doctor", help="Inspect versions and the current herdr pane")
     q.add_argument("--run", help="Use and validate an existing orchestration run")
     q.set_defaults(fn=doctor)
@@ -739,10 +803,14 @@ def parser():
     q.set_defaults(fn=init)
     q = sub.add_parser("spawn", help="Start a visible Codex and send one task")
     q.add_argument("--run", required=True)
-    q.add_argument("--role", choices=MODELS, default="worker")
+    q.add_argument("--role", choices=DEFAULT_MODELS, default="worker")
     q.add_argument("--label", required=True)
     q.add_argument("--task-file", required=True)
     q.add_argument("--cwd")
+    q.add_argument("--model-config", help="Use this JSON file instead of the user model config")
+    q.add_argument("--model", help="Override this child's model")
+    q.add_argument("--effort", help="Override this child's reasoning effort")
+    q.add_argument("--service-tier", help="Override this child's tier; 'inherit' uses Codex settings")
     q.set_defaults(fn=spawn)
     q = sub.add_parser("send", help="Send a follow-up to the same idle Codex session")
     q.add_argument("--task", required=True)

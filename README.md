@@ -15,12 +15,12 @@ Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法
 
 | 項目 | 動作 |
 |---|---|
-| Main | Sol XHIGH。左側で判断・分割・統合・最終受理を担当 |
+| Main | 起動セッションのモデル。左側で判断・分割・統合・最終受理を担当 |
 | 難しい計画・判断相談 | Astra XHIGHをAdvisorとして別ペインで起動。採否はMainが判断 |
 | 通常の調査・実装 | Luna MAX Fastを右側の別ペインで起動 |
 | 長時間処理の監視 | CIなどの反復的な状態確認をLunaに完了まで委任。既存担当がいれば再利用 |
 | 重要なUIデザイン | Sol MAXを別ペインで起動 |
-| 独立レビュー | Sol XHIGH。再レビューは同じセッションを継続 |
+| 独立レビュー | Sol HIGH。再レビューは同じセッションを継続 |
 | 子の権限・承認 | 全役割を`workspace-write + never`で起動。権限不足はMainへ報告 |
 | 並列数 | 固定上限なし。Mainが作業の独立性と調整コストから判断 |
 | 作業待ち | runロックで待機を1つに限定し、Mainは同じ実行セッションをイベントまで再開する |
@@ -34,27 +34,82 @@ Mainの会話IDとherdr端末を実行記録に結び付けます。検証方法
 
 ## モデルと速度の設定
 
-- Main: `gpt-5.6-sol` / `xhigh`
-- Worker: `gpt-5.6-luna` / `max` / Fast
-- Design: `gpt-5.6-sol` / `max`
-- Reviewer: `gpt-5.6-sol` / `xhigh`
-- Advisor: `gpt-6-astra` / `xhigh`（計画作成・相談ともに固定）
+子の既定値は次のとおりです。本文中のLuna・Sol・Astraは既定の担当モデルを指し、
+カスタマイズした場合も役割・独立性・報告・保持期間のルールは同じです。
 
-Mainはherdr内で`codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'`として
-起動します。プラグインは実行中のMainモデルやグローバル既定値を変更しません。
-補助スクリプトはworkerだけに`-c 'service_tier="fast"' -c features.fast_mode=true`を
-追加します。design・reviewer・advisorには速度の上書きを追加せず、既存のCodex設定に従います。
+| 役割 | モデル | 推論強度 | 速度 |
+|---|---|---|---|
+| Worker | `gpt-6-luna` | `max` | Fast |
+| Design | `gpt-6.1-sol` | `max` | 既存のCodex設定に従う |
+| Reviewer | `gpt-6.1-sol` | `high` | 既存のCodex設定に従う |
+| Advisor | `gpt-6-astra` | `xhigh` | 既存のCodex設定に従う |
+
+Mainは起動時に自由に選択できます。従来の起動例はherdr内で
+`codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'`です。
+プラグインは実行中のMainモデルやCodexのグローバル既定値を変更しません。
+Claude CodeをMainにした場合も、そのセッションで選択したモデルを使います。
+
+既定ではworkerだけに`-c 'service_tier="fast"' -c features.fast_mode=true`を追加します。
 Fastと推論強度の`max`は別設定です。Codexの`fast`はリクエストの`priority`に対応します
 （[公式設定リファレンス](https://learn.chatgpt.com/docs/config-file/config-reference)、
 [Fast mode](https://learn.chatgpt.com/docs/agent-configuration/speed)）。
 
-この割当は更新後に新しく起動する担当に適用します。起動引数は要求の記録であり、
+### ユーザーによるカスタマイズ
+
+`~/.config/axiom-for-herdr/models.json`を作ると、プラグイン本体を編集せずに
+役割ごとの`model`・`effort`・`service_tier`を変更できます。`XDG_CONFIG_HOME`がある場合は
+`$XDG_CONFIG_HOME/axiom-for-herdr/models.json`を使います。ファイルはプラグイン外にあるため、
+プラグインの更新で上書きされません。[設定例](plugins/axiom-for-herdr/skills/axiom-for-herdr/references/models.example.json)は全既定値を収録しています。
+
+変更したい項目だけを書くこともできます。たとえばReviewerの推論強度を変更する場合：
+
+```json
+{
+  "reviewer": {"effort": "xhigh"}
+}
+```
+
+未指定の役割・項目はプラグインの既定値を使います。`service_tier: "fast"`では
+Fastの起動引数を追加し、`service_tier: null`では速度を上書きせずCodex設定に従います。
+`null`はFastの強制無効化ではありません。他のtier文字列も指定できますが、
+モデル・推論強度・tierの組み合わせは利用中のCodexが対応する値にしてください。
+
+次のコマンドで、選択された設定ファイルとマージ後の設定を確認できます。
+herdrやモデルの起動は不要です（リポジトリのルートで実行する例）。
+
+```bash
+python3 plugins/axiom-for-herdr/skills/axiom-for-herdr/scripts/axiom_herdr.py models
+```
+
+別のファイルを使う場合は環境変数`AXIOM_HERDR_MODEL_CONFIG=/absolute/path/models.json`、
+または`models`・`spawn`の`--model-config /absolute/path/models.json`を指定します。
+設定ファイルの選択は`--model-config` → 環境変数 → ユーザー標準パスの順で、複数ファイルは合成しません。
+通常の設定ファイルがなければ既定値を使います。明示指定したファイルがない場合、
+JSONが壊れている場合、役割名・キー・値の型が不正な場合はペイン作成前にエラーにします。
+
+1担当だけ変える場合は、`spawn`の`--model`・`--effort`・`--service-tier`を使います。
+以下の`helper`・`run_dir`・`assignment_file`は実際の絶対パスです。
+
+```bash
+python3 "$helper" spawn --run "$run_dir" --role reviewer \
+  --label '独立レビュー' --task-file "$assignment_file" \
+  --model gpt-6.1-sol --effort xhigh --service-tier inherit
+```
+
+各項目の優先順位は **起動時の指定 → 選択された設定ファイル → プラグインの既定値** です。
+`--service-tier inherit`はJSONの`null`と同じです。`model`と`effort`を片方だけ変更した場合、
+もう片方はこの優先順位で決まります。Mainに「今回はReviewerを○○モデル、推論強度○○で」と
+依頼した場合も、この起動時指定を使います。会話中の指定だけで永続ファイルを書き換えません。
+
+設定は`spawn`のたびに読み込み、新しく起動する担当に適用します。既存の担当への`send`では
+変更しません。`task.json`に要求したモデル・推論強度・tier・読込元パスと起動引数を記録します。
 実際のモデル・推論強度・速度はCodexセッションの証拠で確認します。
 
 ## Astra Advisor
 
 難しいPlanの起草、設計案の比較、収束しない失敗、計画の前提変更などで、Mainが
-Astra XHIGHへ相談します。計画作成と短い相談の両方でeffortは`xhigh`固定です。
+Astra XHIGHへ相談します。既定では計画作成と短い相談の両方でeffortは`xhigh`です。
+Advisorも上記の方法でカスタマイズでき、選択された設定は相談の長さだけでは変更しません。
 MainまたはLunaが必要な現状調査を行ってから依頼し、単純な作業では相談を強制しません。
 
 Mainは重要なユーザー発言・関連会話、現在の合意・制約、相談内容、選んだコードや
@@ -100,6 +155,7 @@ Mainのコンテキストを守る、大量の調査ログを担当側に留め�
 これはこのバージョンの経済性に関する明示的な仮定です。実際の料金が無料であることや、
 将来も同じ料金であることを保証しません。Codexやモデルの経済性が大きく変わった場合は、
 この方針を更新します。
+Workerを別モデルに変更した場合、この経済性の仮定をそのモデルに自動適用しません。
 
 ## 必要な環境
 

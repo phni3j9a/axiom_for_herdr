@@ -25,7 +25,8 @@ class AdvisorTests(unittest.TestCase):
         })
         self.fake = FakeHerdr([pane()])
         for context in (
-            patch.dict(helper.os.environ, {"CODEX_THREAD_ID": "main-thread"}, clear=True),
+            patch.dict(helper.os.environ, {"CODEX_THREAD_ID": "main-thread",
+                                          "HOME": str(self.root)}, clear=True),
             patch.object(helper, "Herdr", return_value=self.fake),
         ):
             context.start()

@@ -1,6 +1,6 @@
 ---
 name: axiom-for-herdr
-description: Software engineering coordination through visible herdr panes, combining Sol XHIGH integration, Astra XHIGH planning and advice, Luna MAX Fast implementation, Sol MAX design, independent Sol review, and pane cleanup.
+description: Software engineering coordination through visible herdr panes, with user-configurable models for workers, design, independent review, and advice, plus Main integration and pane cleanup.
 disable-model-invocation: true
 ---
 
@@ -55,32 +55,57 @@ in Main when coordination costs outweigh the benefit.
 This is an explicit economics assumption for this plugin version, not a timeless
 claim about model pricing. Update the policy if Codex/model economics change
 materially.
+Do not carry this cost assumption over to a user-selected alternative Worker model.
 
 ## Model policy
 
-- Main: `gpt-5.6-sol` / `xhigh`
-- Worker: `gpt-5.6-luna` / `max` / Fast
-- Design: `gpt-5.6-sol` / `max`
-- Reviewer: `gpt-5.6-sol` / `xhigh`
+Defaults (user configuration and explicit launch overrides take precedence):
+
+- Main: chosen at session startup; previous example is `gpt-5.6-sol` / `xhigh`
+- Worker: `gpt-6-luna` / `max` / Fast
+- Design: `gpt-6.1-sol` / `max`
+- Reviewer: `gpt-6.1-sol` / `high`
 - Advisor: `gpt-6-astra` / `xhigh` for both difficult plan drafts and consultations
 
 Main is selected at session startup, for example with
 `codex -m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'` inside herdr.
 The plugin cannot switch the active Main model and does not rewrite global defaults.
-The helper adds `-c 'service_tier="fast"' -c features.fast_mode=true` only for workers.
-Design, reviewer, and advisor receive no tier override and retain the existing Codex tier settings.
+By default only workers receive `-c 'service_tier="fast"' -c features.fast_mode=true`.
+Other roles retain existing Codex tier settings. A configured `fast` tier adds both
+arguments for any role; a null tier adds neither and inherits Codex settings.
 Fast is distinct from reasoning effort; verify actual routing from session evidence,
 not just the requested launch arguments.
+
+Read the selected settings with `python3 "$helper" models` before the first spawn.
+The user file is `${XDG_CONFIG_HOME:-~/.config}/axiom-for-herdr/models.json`, with
+partial objects keyed by `worker`, `design`, `reviewer`, and `advisor`. See
+[models.example.json](references/models.example.json) for the schema/defaults.
+`--model-config PATH` (on `models` and `spawn`) selects a file instead of
+`AXIOM_HERDR_MODEL_CONFIG`, which otherwise overrides the default file path.
+Only one file is read; omitted fields retain plugin defaults. If selecting a custom
+file, retain its absolute path and pass it on every relevant `spawn`, including after
+compaction. The run itself does not persist this file selection.
+
+Honor explicit user routing requests with `spawn --model ... --effort ...
+--service-tier ...`; pass only the requested fields. `--service-tier inherit` uses
+Codex's existing tier. Launch fields override the selected file and plugin defaults.
+Do not rewrite persistent settings unless the user asks to save them. Do not pin
+defaults in spawn arguments, since that would defeat user configuration.
+The helper rereads configuration for each spawn; `send` preserves existing sessions.
+Model names below are shorthand for the default roles, not restrictions on user
+customization. Independent review and other role boundaries apply to any model.
+If the selected model/effort/tier is unavailable, report it rather than silently
+falling back or changing the user's settings.
 
 ## Main's decisions
 
 - Keep intent, architecture, design direction, ownership, integration, and final
   acceptance in Main. Small obvious edits can remain in Main.
 - Ordinary bounded investigation, implementation, tests, and debugging go to
-  `gpt-5.6-luna` / `max` / Fast, following the Luna economics policy above.
+  `worker` (default `gpt-6-luna` / `max` / Fast).
 - Unsettled, material visual, interaction, or information-design work goes to
-  `gpt-5.6-sol` / `max`. Finished design specifications can be implemented by Luna.
-- Meaningful independent review goes to fresh `gpt-5.6-sol` / `xhigh`. A design
+  `design` (default `gpt-6.1-sol` / `max`). Finished specifications can be implemented by Worker.
+- Meaningful independent review goes to a fresh `reviewer` (default `gpt-6.1-sol` / `high`). A design
   participant cannot independently review its own implementation.
 - Main chooses useful parallelism. There is no fixed worker count. Independent
   tasks should run concurrently when coordination and integration permit it.
@@ -118,7 +143,7 @@ Once needed, keep the same Advisor pane for Main's entire work session, includin
 later consultations. Send new evidence, changed assumptions, and Main's decisions
 through `send`. Resolving one consultation does not end the Advisor's lifetime;
 follow the pane lifecycle below and advisor.md for justified session replacement.
-The helper does not enforce this lifecycle; Main owns it. If Astra XHIGH is
+The helper does not enforce this lifecycle; Main owns it. If the selected Advisor is
 unavailable, disclose the failure and continue useful work in Main without silently
 substituting a model or effort, duplicating the pane, or widening permissions.
 

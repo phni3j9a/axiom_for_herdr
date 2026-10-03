@@ -1,4 +1,4 @@
-# Independent Sol review
+# Independent review
 
 An Astra planning/advisory participant cannot be the independent Reviewer. Astra
 may advise Main on a technical dispute, but Main still adjudicates findings and
@@ -6,11 +6,14 @@ decides whether the same Sol Reviewer needs another pass.
 
 Adapted from phni3j9a/axiom's MIT-licensed review guidance.
 
-Start the review cycle in a fresh `reviewer` pane (Sol XHIGH), independent of
+Start the review cycle in a fresh `reviewer` pane (default GPT-6.1 Sol HIGH), independent of
 implementation and design participants. Keep that same Codex session for useful
 re-review, and retain the Workers responsible for the candidate throughout the
 cycle so they can address accepted findings. Main owns acceptance, risk tolerance,
 scope, and the decision to end or reset a review cycle.
+Honor the user's configured Reviewer model, effort, and tier as described in
+SKILL.md. Model names here describe default roles; independence is between
+participants and is required even when two roles use the same model.
 
 ## Review boundary
 
@@ -93,9 +96,10 @@ non-goals, architecture, or risk policy materially changes, Main re-adjudicates
 and chooses whether the same session can reset its boundary or a fresh cycle is
 useful. A boundary change does not automatically mandate either choice.
 
-If the Reviewer session is lost, Main may create a fresh Sol replacement with
+If the Reviewer session is lost, Main may create a fresh Reviewer replacement with
 the earlier findings, adjudication, fixes, current candidate, and evidence.
-Treat that as recovery, not routine re-review. Never substitute Luna as Reviewer.
+Treat that as recovery, not routine re-review. Preserve the selected Reviewer
+settings unless the user changes them; do not silently substitute a Worker model.
 
 Main ends review when the candidate is sufficiently resolved and no accepted
 material finding remains unaddressed. Then it closes the Reviewer and participating

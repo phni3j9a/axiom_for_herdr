@@ -124,6 +124,9 @@ class MainBindingTests(unittest.TestCase):
         role_patch = patch.dict(helper.os.environ, {"AXIOM_HERDR_ROLE": "main"})
         role_patch.start()
         self.addCleanup(role_patch.stop)
+        home_patch = patch.object(helper.Path, "home", return_value=self.root)
+        home_patch.start()
+        self.addCleanup(home_patch.stop)
 
     def bound_run(self, **updates):
         run = {
@@ -253,9 +256,9 @@ class MainBindingTests(unittest.TestCase):
         task_file = self.root / "assignment.md"
         task_file.write_text("do the bounded work\n", encoding="utf-8")
         expected_models = {
-            "worker": ("gpt-5.6-luna", "max"),
-            "design": ("gpt-5.6-sol", "max"),
-            "reviewer": ("gpt-5.6-sol", "xhigh"),
+            "worker": ("gpt-6-luna", "max"),
+            "design": ("gpt-6.1-sol", "max"),
+            "reviewer": ("gpt-6.1-sol", "high"),
             "advisor": ("gpt-6-astra", "xhigh"),
         }
         for role, (model, effort) in expected_models.items():

@@ -1,7 +1,7 @@
 {
   "name": "axiom-for-herdr",
   "displayName": "Axiom for herdr",
-  "description": "Axiom orchestration with visible Codex workers, Astra XHIGH advisors, and independent reviewers in herdr panes, coordinated by a Claude Code or Codex Main.",
+  "description": "Axiom orchestration with user-configurable Codex models in visible herdr panes, coordinated by a Claude Code or Codex Main.",
   "author": {
     "name": "phni3j9a",
     "url": "https://github.com/phni3j9a"
