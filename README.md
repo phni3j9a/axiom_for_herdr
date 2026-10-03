@@ -1,5 +1,8 @@
 # Axiom for herdr
 
+> [!IMPORTANT]
+> このリポジトリは開発を終了し、アーカイブしました。後継は[VisibleTeam for herdr](https://github.com/phni3j9a/visible-team)です。
+
 **Main decides. Astra advises. Sol designs. Luna executes. Sol reviews.**
 
 Codexの担当作業を、herdrの分割ペインで同時に見られるプラグインです。
