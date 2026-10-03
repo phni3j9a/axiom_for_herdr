@@ -1,8 +1,9 @@
 # Astra XHIGH advisor
 
-Use `gpt-6-astra` with `reasoning_effort: "xhigh"` for both difficult plan drafting
-and decision consultations. Do not reduce effort for a short consultation or raise
-it to MAX for planning. Do not add a service-tier override for this role.
+The default is `gpt-6-astra` with `effort: "xhigh"` for both difficult plan drafting
+and decision consultations, inheriting Codex's service tier. Honor user model,
+effort, and tier settings from SKILL.md; "Astra" below names the default Advisor.
+Do not change the selected effort just because a consultation is short or involves planning.
 
 Main owns user intent, plan adoption, task assignment, integration, and final
 acceptance. Astra contributes proposals and evidence; its advice does not grant
@@ -107,7 +108,7 @@ the [pane lifecycle](../SKILL.md#pane-lifecycle). Intermediate replies, user-inp
 waits, and compaction do not end that lifetime. Retention alone is not a reason for
 new consultations or periodic polling.
 
-If explicit Astra XHIGH routing is unavailable or a call fails, report that fact
+If the selected Advisor routing is unavailable or a call fails, report that fact
 and continue useful work in Main where possible. Do not silently substitute another
 model/effort or report an unreturned consultation as completed. Wait and resume using
 the host's existing lifecycle, without widening permissions or duplicating work.

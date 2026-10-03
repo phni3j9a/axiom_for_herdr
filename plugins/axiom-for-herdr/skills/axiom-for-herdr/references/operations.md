@@ -58,15 +58,41 @@ python3 "$helper" spawn --run "$run_dir" --role worker \
   --label 'SSH再接続の実装' --task-file "$assignment_file"
 ```
 
-Roles: `worker` (Luna MAX Fast), `design` (Sol MAX), `reviewer` (Sol XHIGH),
-`advisor` (Astra XHIGH for both plan drafting and consultation).
-Only `worker` adds `-c 'service_tier="fast"' -c features.fast_mode=true`.
-`design`, `reviewer`, and `advisor` do not override the existing Codex service tier.
-Main must be started as Sol XHIGH; the helper does not switch Main's model.
+Default roles: `worker` (GPT-6 Luna MAX Fast), `design` (GPT-6.1 Sol MAX),
+`reviewer` (GPT-6.1 Sol HIGH), `advisor` (GPT-6 Astra XHIGH for planning and advice).
+Main's model is chosen when Main starts; the helper does not switch it.
+Read merged defaults/user settings before the first spawn:
+
+```sh
+python3 "$helper" models
+python3 "$helper" models --model-config /absolute/path/models.json
+```
+
+The JSON file maps roles to partial objects with `model`, `effort`, and `service_tier`.
+See [models.example.json](models.example.json). Select one file in this order:
+`--model-config` > `AXIOM_HERDR_MODEL_CONFIG` >
+`${XDG_CONFIG_HOME:-~/.config}/axiom-for-herdr/models.json`.
+An absent default file uses built-in defaults; an explicitly selected missing file
+or malformed configuration is an error before any task directory or pane is created.
+Keep a custom file path in Main's context and pass it to each `spawn`; `init` and
+the run do not store this choice. Environment-based selection must reach the helper process.
+
+Per-launch `--model`, `--effort`, and `--service-tier` override individual file/default
+fields. Use them for explicit user requests, not to repeat the built-in defaults.
+For example, append `--effort xhigh` to a reviewer spawn for a one-off effort change.
+No model allowlist is imposed; Codex validates availability and supported combinations.
+Keep permission flags fixed even when routing changes.
+
+The default worker tier is `fast`; other roles use null. Any role selecting `fast`
+adds `-c 'service_tier="fast"' -c features.fast_mode=true`. A null tier (or CLI
+`--service-tier inherit`) adds no tier/feature override and retains Codex settings;
+this does not force Fast off. Other tier strings are passed through as `service_tier`.
 `requested_codex_args` records the requested tier, not proof of effective Fast processing.
+`task.json` also records `model`, `effort`, `service_tier`, and the loaded
+`model_config_path` (null when the optional default file is absent).
 
 `--cwd /absolute/worktree` optionally starts the worker in a worktree Main has
-already prepared. Model/effort are selected by the role. Every role explicitly
+already prepared. Every role explicitly
 launches with `--sandbox workspace-write --ask-for-approval never`, independently
 of Main's current mode and the user's approval/sandbox defaults. The launch also
 pins `-c default_permissions=":workspace"` because the tested CLI 0.154.0 / shared
@@ -93,7 +119,7 @@ the shared daemon's global environment. Explicit environment values still respec
 configured include filters; if a custom allowlist excludes the context keys, report
 that conflict instead of broadening filters or claiming the context was delivered.
 
-The fixed settings apply to newly spawned children. Updating the plugin or using
+Model settings are reread for newly spawned children. Updating the plugin or using
 `send` does not reconfigure an already-running Codex session.
 
 `spawn` prints JSON objects, one before startup and another after prompt submission.

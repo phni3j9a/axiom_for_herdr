@@ -23,7 +23,8 @@ launched by the same helper with the same models, permissions, and report protoc
   instruction and `background_terminal_max_timeout` setting are Codex-only.
 - Delegate through the herdr helper, not through Claude Code's Agent tool or other
   hidden subagents. Do not duplicate the same work in both paths.
-- Children keep their fixed Codex launch settings. Claude Code's own permission mode
+- Children use the same configurable model routing (`models.json`, `--model-config`,
+  and per-spawn overrides) and fixed Codex permission settings. Claude Code's own permission mode
   and approval rules apply only to Main's actions.
 
 ## Waiting for events

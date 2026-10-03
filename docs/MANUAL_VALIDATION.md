@@ -3,6 +3,23 @@
 この文書はユーザー環境での確認手順です。シナリオごとの実施範囲は末尾の検証記録に残します。
 まず小さな確認用ディレクトリで、herdrとCodexのバージョンを記録してください。
 
+## モデル設定の確認
+
+1. READMEの`models`コマンドで設定ファイルとマージ後の値を確認する。設定なしでは
+   Worker=`gpt-6-luna / max / fast`、Design=`gpt-6.1-sol / max`、
+   Reviewer=`gpt-6.1-sol / high`、Advisor=`gpt-6-astra / xhigh`となる。
+2. ユーザー標準パス、`AXIOM_HERDR_MODEL_CONFIG`、`--model-config`で一部の役割だけを
+   上書きし、未指定項目は既定値が残ることを確認する。`models`だけではペインを作成しない。
+3. 同じ設定で担当を起動し、`task.json`の`model`・`effort`・`service_tier`・
+   `model_config_path`・`requested_codex_args`と、実セッション記録をそれぞれ確認する。
+   起動引数だけで実モデル・実際のFast適用を確認できたと扱わない。
+4. `spawn --model ... --effort ... --service-tier ...`が該当担当の設定だけを上書きし、
+   権限は従来の`workspace-write / never`であることを確認する。
+5. `service_tier: null`・`--service-tier inherit`ではプラグインからtier指定が付かないこと、
+   不正な設定はペイン作成前にエラーとなることを確認する。
+6. 設定ファイルを変更した後も、既存担当への`send`では以前のモデル・推論強度を保ち、
+   新しい`spawn`から変更が反映されることを確認する。
+
 ## 0. 共有app-serverでの会話・画面登録
 
 実行側に`CODEX_THREAD_ID`があり、`HERDR_*`がない状態で確認します。
@@ -296,3 +313,15 @@ Mainのセッション履歴を基に、通常のhelper待機を`--until-event`�
 - 新版helperを使った10〜30分の実ペイン待機、外側ラッパーの長時間継続、ユーザー割り込みと
   コンテキスト圧縮後の同一ハンドル再開は未実施。既存の旧cacheで進行中だった他セッションを
   妨げないため、今回の更新作業からは接続していない。新しいMainセッションで本文の手順を実測する。
+
+## 2026-10-03 モデルの更新とカスタマイズ（Issue #17）
+
+WorkerをGPT-6 Luna MAX Fast、DesignをGPT-6.1 Sol MAX、ReviewerをGPT-6.1 Sol HIGHへ更新。
+ユーザーのJSON設定、設定パスの選択、起動時の項目別上書き、`models`での事前確認を追加した。
+Advisorの既定値はGPT-6 Astra XHIGHを維持し、全子役の設定を変更可能にした。
+
+- 回帰・設定テスト45件が成功。herdrの模擬状態で新既定値、ファイルとCLIの優先順位、
+  部分設定、tier継承、エラー時のペイン未作成、権限維持、`send`での設定維持を確認した。
+- Python構文、スキルのfrontmatter、両プラグイン定義、設定例、`git diff --check`を検証。
+- `models`の実プロセス実行を確認した。実ペインでの新モデル起動、実際の速度・品質・消費量、
+  インストール済みプラグインへの反映は未実施。起動引数の模擬検証とは区別する。
